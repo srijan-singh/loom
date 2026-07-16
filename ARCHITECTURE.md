@@ -21,7 +21,9 @@
 
 Loom is a local-first desktop application. The Flutter shell manages the process lifecycle and renders the UI. All business logic runs inside a Java subprocess, which the Flutter layer communicates with over HTTP (REST + SSE). A single SQLite file on the user's machine provides persistence.
 
-```
+The Java server binds exclusively to the loopback interface (`127.0.0.1`). The listening port is chosen at startup and handed to the Flutter shell via stdout (or a shared environment variable), so Flutter always knows the exact ephemeral address. Each launch generates a per-launch secret token; Flutter includes this token on every REST request and SSE connection. The server rejects any request that omits a valid token, preventing other local processes from accessing these routes.
+
+```text
 ┌─────────────────────────────────────────────────────────┐
 │                    Desktop Application                  │
 │                                                         │
@@ -49,7 +51,7 @@ Both external connections (LLM providers and MCP servers) are **outbound only**.
 
 | # | Principle | Meaning |
 |---|-----------|---------|
-| 1 | **Local first** | No user data leaves the machine |
+| 1 | **Local first** | No user data is sent to Loom-operated servers; configured LLM providers and MCP servers may receive workspace context and agent prompts |
 | 2 | **Bring your own AI** | API keys are stored locally; Loom never sees them |
 | 3 | **Modular agents** | One agent, one skill, one job |
 | 4 | **Audit everything** | Every execution is fully traceable |
@@ -103,7 +105,7 @@ Both external connections (LLM providers and MCP servers) are **outbound only**.
 
 ## 4. Java Module Structure
 
-```
+```text
 com.loom
  ├── Main.java                    → Entry point, wires everything
  │
@@ -200,7 +202,7 @@ The internal DTO for a workflow. The canvas serializes to this format; the engin
 
 ### Session State Machine
 
-```
+```text
                     ┌─────────┐
                     │ CREATED │
                     └────┬────┘
@@ -219,7 +221,7 @@ The internal DTO for a workflow. The canvas serializes to this format; the engin
 
 ### Agent Execution State Machine
 
-```
+```text
           ┌─────────┐
           │ WAITING │  ← dependencies not yet complete
           └────┬────┘
@@ -249,7 +251,7 @@ The internal DTO for a workflow. The canvas serializes to this format; the engin
 
 The sequence inside `AgentRuntime.execute(agentDefinition, session, inputContext)`:
 
-```
+```text
 1. Load skill markdown from storage
 
 2. Fetch workspace context
@@ -306,7 +308,7 @@ Flutter opens a single SSE connection and reacts to all events on it. Every sign
 
 ### Event Payload Shape
 
-```
+```text
 eventType
 sessionId
 nodeId              (nullable)
@@ -323,7 +325,7 @@ Templates are JSON config files (not code). `TemplateEngine.assemble(templateId,
 
 ### Assembly Steps
 
-```
+```text
 1. Load template definition (JSON config file)
 
 2. Evaluate conditions against userContext
@@ -368,7 +370,12 @@ mcp_connections
   id          TEXT PRIMARY KEY
   name        TEXT
   type        TEXT    -- GITHUB | FIGMA | FILESYSTEM | …
-  config      TEXT    -- JSON blob (connection details)
+  config      TEXT    -- JSON blob (non-sensitive connection details only;
+                      --   API credentials must NOT be stored here —
+                      --   store them in the OS-backed secret store and
+                      --   persist only a secret reference in this field.
+                      --   The config column is safe to include in backups;
+                      --   the secret store entry is not.)
   status      TEXT    -- CONNECTED | DISCONNECTED
   created_at  INTEGER
 
@@ -384,7 +391,7 @@ agent_definitions
 workflow_definitions
   id          TEXT PRIMARY KEY
   name        TEXT
-  type        TEXT    -- CHAIN | SUPERVISOR
+  type        TEXT    -- CHAIN | SUPERVISOR | PARALLEL
   created_by  TEXT    -- TEMPLATE | USER
   graph       TEXT    -- full workflow JSON
   created_at  INTEGER
@@ -397,8 +404,9 @@ workspaces
   created_at  INTEGER
 
 workspace_workflows
-  workspace_id            TEXT
-  workflow_definition_id  TEXT
+  workspace_id            TEXT    -- FK → workspaces(id) ON DELETE CASCADE
+  workflow_definition_id  TEXT    -- FK → workflow_definitions(id) ON DELETE CASCADE
+  PRIMARY KEY (workspace_id, workflow_definition_id)
 
 sessions
   id                      TEXT PRIMARY KEY
@@ -434,7 +442,7 @@ workspace_knowledge
 
 ## 11. UI Information Architecture
 
-```
+```text
 App
  ├── Onboarding (first launch only)
  │    ├── Welcome

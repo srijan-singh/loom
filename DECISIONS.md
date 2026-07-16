@@ -37,9 +37,9 @@ Use Java for the backend subprocess.
 - Zero learning curve for the primary author
 - Predictable performance and straightforward debugging
 
-**Alternatives considered**  
+**Alternatives considered**
 - *Node.js* — fast to write, but async callback complexity at scale; weaker typing
-- *Python* — popular in the AI space, but GIL limitations and packaging complexity
+- *Python* — popular in the AI space, but packaging and distribution complexity across platforms; CPU-bound parallelism is also weaker for any future compute-intensive tasks
 - *Go* — compelling, but steeper learning curve and smaller ecosystem for HTTP + DB
 
 ---
@@ -121,9 +121,9 @@ Flutter (UI) and Java (engine) run as separate processes on the same machine. Th
 - **REST over localhost** for all CRUD operations (skills, agents, workflows, workspaces)
 - **Server-Sent Events (SSE)** for the live execution event stream
 
-**Rationale**  
+**Rationale**
 - REST is stateless, easy to test, and maps cleanly to the CRUD surface
-- SSE is simpler than WebSockets for a unidirectional push channel; no handshake overhead, works natively over HTTP
+- SSE is simpler than WebSockets for a unidirectional push channel; it uses a long-lived HTTP connection and avoids the WebSocket upgrade, making it trivially compatible with standard HTTP tooling
 - Both use standard HTTP — no custom serialization, no binary protocol, easy to inspect with curl
 
 **Alternatives considered**  

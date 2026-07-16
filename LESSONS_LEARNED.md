@@ -8,7 +8,7 @@ Each entry follows the format below so lessons are scannable and actionable.
 
 ## Entry format
 
-```
+```markdown
 ## LL-NNN — Short title
 
 **Date:** YYYY-MM-DD

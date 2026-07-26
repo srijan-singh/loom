@@ -1,5 +1,7 @@
 package com.loom.storage.repository;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loom.domain.WorkspaceKnowledge;
 import com.loom.storage.DatabaseManager;
 
@@ -9,6 +11,7 @@ import java.util.*;
 public class WorkspaceKnowledgeRepository {
 
     private final DatabaseManager db;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public WorkspaceKnowledgeRepository(DatabaseManager db) {
         this.db = db;
@@ -83,12 +86,20 @@ public class WorkspaceKnowledgeRepository {
     }
 
     private String tagsToString(List<String> tags) {
-        if (tags == null || tags.isEmpty()) return "";
-        return String.join(",", tags);
+        if (tags == null || tags.isEmpty()) return "[]";
+        try {
+            return mapper.writeValueAsString(tags);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to serialize tags", e);
+        }
     }
 
     private List<String> stringToTags(String raw) {
         if (raw == null || raw.isBlank()) return new ArrayList<>();
-        return new ArrayList<>(Arrays.asList(raw.split(",")));
+        try {
+            return mapper.readValue(raw, new TypeReference<List<String>>() {});
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to deserialize tags", e);
+        }
     }
 }

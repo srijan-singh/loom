@@ -1,5 +1,7 @@
 package com.loom.storage.repository;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loom.domain.AgentDefinition;
 import com.loom.storage.DatabaseManager;
 
@@ -9,6 +11,7 @@ import java.util.*;
 public class AgentRepository {
 
     private final DatabaseManager db;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public AgentRepository(DatabaseManager db) {
         this.db = db;
@@ -97,12 +100,20 @@ public class AgentRepository {
     }
 
     private String listToString(List<String> list) {
-        if (list == null || list.isEmpty()) return "";
-        return String.join(",", list);
+        if (list == null || list.isEmpty()) return "[]";
+        try {
+            return mapper.writeValueAsString(list);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to serialize allowedMcpIds", e);
+        }
     }
 
     private List<String> stringToList(String raw) {
         if (raw == null || raw.isBlank()) return new ArrayList<>();
-        return new ArrayList<>(Arrays.asList(raw.split(",")));
+        try {
+            return mapper.readValue(raw, new TypeReference<List<String>>() {});
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to deserialize allowedMcpIds", e);
+        }
     }
 }

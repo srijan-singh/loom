@@ -104,21 +104,21 @@ Additional query methods:
 
 ## Serialization Conventions
 
-### `tags` / `allowedMcpIds` — comma-separated TEXT
+### `tags` / `allowedMcpIds` — JSON array TEXT
 
 ```
-["search", "web", "research"]  ←→  "search,web,research"
+["search", "web", "research"]  ←→  '["search","web","research"]'
 ```
 
-Simple, queryable with `LIKE`, and avoids a JSON dependency for scalar string lists.
+Stored as a JSON array string serialized by Jackson. This is lossless — tags containing commas round-trip as single values without corruption.
 
-`findByTag` uses a wrapped-comma trick to avoid false-prefix matches:
+`findByTag` uses SQLite's `json_each` table-valued function for exact-match semantics:
 
 ```sql
-WHERE (',' || tags || ',') LIKE '%,web,%'
+SELECT DISTINCT s.* FROM skills s, json_each(s.tags) t WHERE t.value = ?
 ```
 
-This correctly matches `"web"` inside `"search,web,research"` without matching `"webdev"`.
+`json_each` expands the array into rows, so each element is compared as a whole string. A tag `"a,b"` is found only by searching for `"a,b"`, never by searching for `"a"` or `"b"` alone.
 
 ### `MCPConnection.config` — JSON TEXT
 

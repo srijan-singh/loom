@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <p>Uses a real SQLite file in a JVM temp directory, exercises every repository's
  * {@code save → findById} round-trip, and validates the three complex serialization
- * paths: tag lists (comma-separated), allowedMcpIds (comma-separated), and
+ * paths: tag lists (JSON array), allowedMcpIds (JSON array), and
  * WorkflowDefinition graph (JSON nodes + edges). No mocks; no in-memory fakes.
  *
  * <p>A single test method is used intentionally — one coherent behaviour story
@@ -43,11 +43,7 @@ class StorageBVT {
     static void setUp() throws IOException {
         dbFile = Files.createTempFile("loom-bvt-", ".db");
         dbFile.toFile().deleteOnExit();
-        System.setProperty("LOOM_DB_PATH_TEST", dbFile.toAbsolutePath().toString());
-
-        // Use the temp file path via env-var override — we inject via DatabaseManager ctor
-        // by temporarily setting the system env lookup. Since System.getenv() is final, we
-        // subclass-and-override the path resolution by passing it via a package-private ctor.
+        // DatabaseManager receives the path directly via its package-private constructor.
         db = new DatabaseManager(dbFile.toAbsolutePath().toString());
 
         skillRepo     = new SkillRepository(db);
@@ -92,6 +88,23 @@ class StorageBVT {
         assertEquals(skill.getId(), byTag.get(0).getId());
 
         assertEquals(0, skillRepo.findByTag("nonexistent").size());
+
+        // Tag containing a comma must round-trip as a single value, not split into two
+        Skill commaTagSkill = new Skill();
+        commaTagSkill.setName("Comma Tag Skill");
+        commaTagSkill.setTags(List.of("a,b", "c"));
+        commaTagSkill.setCreatedAt(System.currentTimeMillis());
+        commaTagSkill.setUpdatedAt(System.currentTimeMillis());
+        skillRepo.save(commaTagSkill);
+
+        Optional<Skill> foundCommaSkill = skillRepo.findById(commaTagSkill.getId());
+        assertTrue(foundCommaSkill.isPresent());
+        assertEquals(2, foundCommaSkill.get().getTags().size(), "tag containing comma must not be split");
+        assertTrue(foundCommaSkill.get().getTags().contains("a,b"));
+        assertTrue(foundCommaSkill.get().getTags().contains("c"));
+        assertEquals(1, skillRepo.findByTag("a,b").size(), "findByTag must match tag containing comma exactly");
+        assertEquals(0, skillRepo.findByTag("a").size(),   "findByTag must not match partial comma-split");
+        skillRepo.delete(commaTagSkill.getId());
 
         // ── 2. MCP CONNECTION ────────────────────────────────────────────────────
         MCPConnection mcp = new MCPConnection();

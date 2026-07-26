@@ -17,7 +17,41 @@
 
 package com.loom;
 
+import com.loom.event.EventType;
+import com.loom.event.WorkflowEvent;
+import com.loom.transport.LocalServer;
+import com.loom.transport.SSEManager;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.Map;
+
+@Slf4j
 public class Main {
     public static void main(String[] args) {
+        String portEnv = System.getenv("LOOM_PORT");
+        int port = (portEnv != null && !portEnv.isBlank()) ? Integer.parseInt(portEnv) : 7070;
+
+        SSEManager sseManager = new SSEManager();
+        LocalServer localServer = new LocalServer(sseManager);
+
+        localServer.start(port);
+        System.out.println("Loom engine listening on port " + port);
+
+        new Thread(() -> {
+            try {
+                Thread.sleep(2000);
+                WorkflowEvent testflowEvent = WorkflowEvent.builder()
+                        .eventType(EventType.SESSION_STARTED)
+                        .sessionId("test-123")
+                        .timestamp(System.currentTimeMillis())
+                        .data(Map.of("message", "Hello World!"))
+                        .build();
+
+                sseManager.broadcast(testflowEvent);
+                log.info("test event broadcasted");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }).start();
     }
 }

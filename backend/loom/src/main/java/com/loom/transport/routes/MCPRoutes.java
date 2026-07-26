@@ -17,5 +17,14 @@
 
 package com.loom.transport.routes;
 
+import io.javalin.router.JavalinDefaultRoutingApi;
+
 public class MCPRoutes {
+    private static final String NOT_IMPLEMENTED = "{\"status\":\"not_implemented\"}";
+
+    public void register(JavalinDefaultRoutingApi router) {
+        router.get("/mcp", ctx -> ctx.result(NOT_IMPLEMENTED));
+        router.post("/mcp", ctx -> ctx.result(NOT_IMPLEMENTED));
+        router.get("/mcp/{id}", ctx -> ctx.result(NOT_IMPLEMENTED));
+    }
 }

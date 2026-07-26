@@ -17,5 +17,15 @@
 
 package com.loom.transport.routes;
 
+import io.javalin.router.JavalinDefaultRoutingApi;
+
 public class SessionRoutes {
+    private static final String NOT_IMPLEMENTED = "{\"status\":\"not_implemented\"}";
+
+    public void register(JavalinDefaultRoutingApi router) {
+        router.get("/sessions", ctx -> ctx.result(NOT_IMPLEMENTED));
+        router.post("/sessions", ctx -> ctx.result(NOT_IMPLEMENTED));
+        router.get("/sessions/{id}", ctx -> ctx.result(NOT_IMPLEMENTED));
+        router.delete("/sessions/{id}", ctx -> ctx.result(NOT_IMPLEMENTED));
+    }
 }

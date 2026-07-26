@@ -17,5 +17,14 @@
 
 package com.loom.transport.routes;
 
+import io.javalin.router.JavalinDefaultRoutingApi;
+
 public class SkillRoutes {
+    private static final String NOT_IMPLEMENTED = "{\"status\":\"not_implemented\"}";
+
+    public void register(JavalinDefaultRoutingApi router) {
+        router.get("/skills", ctx -> ctx.result(NOT_IMPLEMENTED));
+        router.post("/skills", ctx -> ctx.result(NOT_IMPLEMENTED));
+        router.get("/skills/{id}", ctx -> ctx.result(NOT_IMPLEMENTED));
+    }
 }

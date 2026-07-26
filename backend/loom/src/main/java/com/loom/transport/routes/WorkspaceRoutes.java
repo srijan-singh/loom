@@ -17,5 +17,14 @@
 
 package com.loom.transport.routes;
 
+import io.javalin.router.JavalinDefaultRoutingApi;
+
 public class WorkspaceRoutes {
+    private static final String NOT_IMPLEMENTED = "{\"status\":\"not_implemented\"}";
+
+    public void register(JavalinDefaultRoutingApi router) {
+        router.get("/workspaces", ctx -> ctx.result(NOT_IMPLEMENTED));
+        router.post("/workspaces", ctx -> ctx.result(NOT_IMPLEMENTED));
+        router.get("/workspaces/{id}", ctx -> ctx.result(NOT_IMPLEMENTED));
+    }
 }

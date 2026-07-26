@@ -17,23 +17,55 @@
 
 package com.loom.event;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.jspecify.annotations.Nullable;
 
+import java.util.Map;
+
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL) // Don't serialize null fields
 public class WorkflowEvent {
+
+    /**
+     * Type of event - maps to EventType enum
+     */
     private EventType eventType;
 
+    /**
+     * Unique identifier for the workflow session
+     */
     private String sessionId;
 
+    /**
+     * Optional: Specific workflow node this event relates to
+     */
     @Nullable
     private String nodeId;
 
+    /**
+     * Optional: Specific agent execution this event relates to
+     */
     @Nullable
     private String agentExecutionId;
 
+    /**
+     * Unix timestamp (milliseconds) when this event occurred
+     */
     private long timestamp;
 
-    //TODO: event-specific payload, serialized as JSON
-    private Object data;
+    /**
+     * Event-specific payload. Structure depends on eventType.
+     * Examples:
+     * - SESSION_STARTED: {"workflowName": "...", "userId": "..."}
+     * - AGENT_TOKEN: {"token": "Hello", "index": 0}
+     * - NODE_FAILED: {"error": "...", "retryable": true}
+     */
+    private Map<String, Object> data;
 }

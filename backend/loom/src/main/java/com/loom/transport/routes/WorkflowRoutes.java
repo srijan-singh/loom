@@ -17,5 +17,14 @@
 
 package com.loom.transport.routes;
 
+import io.javalin.router.JavalinDefaultRoutingApi;
+
 public class WorkflowRoutes {
+    private static final String NOT_IMPLEMENTED = "{\"status\":\"not_implemented\"}";
+
+    public void register(JavalinDefaultRoutingApi router) {
+        router.get("/workflows", ctx -> ctx.result(NOT_IMPLEMENTED));
+        router.post("/workflows", ctx -> ctx.result(NOT_IMPLEMENTED));
+        router.get("/workflows/{id}", ctx -> ctx.result(NOT_IMPLEMENTED));
+    }
 }

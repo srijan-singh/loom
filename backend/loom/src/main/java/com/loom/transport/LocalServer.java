@@ -17,5 +17,45 @@
 
 package com.loom.transport;
 
+import com.loom.transport.routes.*;
+import io.javalin.Javalin;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 public class LocalServer {
+
+    private static final String EVENTS_ENDPOINT = "/events";
+
+    private final SSEManager sseManager;
+    private Javalin app;
+
+    public LocalServer(SSEManager sseManager) {
+        this.sseManager = sseManager;
+    }
+
+    public void start(int port) {
+        AgentRoutes agentRoutes = new AgentRoutes();
+        WorkflowRoutes workflowRoutes = new WorkflowRoutes();
+        SkillRoutes skillRoutes = new SkillRoutes();
+        MCPRoutes mcpRoutes = new MCPRoutes();
+        SessionRoutes sessionRoutes = new SessionRoutes();
+        WorkspaceRoutes workspaceRoutes = new WorkspaceRoutes();
+
+        app = Javalin.create(config -> {
+            config.routes.sse(EVENTS_ENDPOINT, sseManager::attach);
+            agentRoutes.register(config.routes);
+            workflowRoutes.register(config.routes);
+            skillRoutes.register(config.routes);
+            mcpRoutes.register(config.routes);
+            sessionRoutes.register(config.routes);
+            workspaceRoutes.register(config.routes);
+        }).start(port);
+        log.info("Started Loom engine on port {}", port);
+    }
+
+    public void stop() {
+        if (app != null) {
+            app.stop();
+        }
+    }
 }

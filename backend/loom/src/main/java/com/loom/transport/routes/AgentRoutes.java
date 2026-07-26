@@ -17,5 +17,14 @@
 
 package com.loom.transport.routes;
 
+import io.javalin.router.JavalinDefaultRoutingApi;
+
 public class AgentRoutes {
+    private static final String NOT_IMPLEMENTED = "{\"status\":\"not_implemented\"}";
+
+    public void register(JavalinDefaultRoutingApi router) {
+        router.get("/agents", ctx -> ctx.result(NOT_IMPLEMENTED));
+        router.post("/agents", ctx -> ctx.result(NOT_IMPLEMENTED));
+        router.get("/agents/{id}", ctx -> ctx.result(NOT_IMPLEMENTED));
+    }
 }

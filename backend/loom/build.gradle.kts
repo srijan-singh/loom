@@ -11,6 +11,7 @@ val jspecifyVersion = project.property("jspecifyVersion").toString()
 val javalinVersion = project.property("javalinVersion").toString()
 val jacksonVersion = project.property("jacksonVersion").toString()
 val slf4jVersion = project.property("slf4jVersion").toString()
+val sqliteJdbcVersion = project.property("sqliteJdbcVersion").toString()
 
 val junitVersion = project.property("junitVersion").toString()
 val mockitoVersion = project.property("mockitoVersion").toString()
@@ -27,6 +28,9 @@ dependencies {
 
     // Databind
     implementation("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
+
+    // SQLite
+    implementation("org.xerial:sqlite-jdbc:$sqliteJdbcVersion")
 
     // Lombok dependency configuration
     compileOnly("org.projectlombok:lombok:$lombokVersion")

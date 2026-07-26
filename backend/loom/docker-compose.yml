@@ -1,0 +1,26 @@
+# docker-compose.yml
+#
+# Open an interactive SQLite shell against a loom.db file:
+#
+#   docker compose run --rm -v /path/to/dir:/data sqlite
+#
+# Or bind-mount the current directory (where loom.db lives):
+#
+#   docker compose run --rm -v $(pwd):/data sqlite
+#
+# Run a single SQL statement non-interactively:
+#
+#   docker compose run --rm -v $(pwd):/data sqlite /data/loom.db "SELECT * FROM skills;"
+#
+version: "3.9"
+
+services:
+
+  # Alpine + sqlite3 CLI only. No default volume is defined — you must
+  # explicitly bind-mount the directory containing loom.db at /data.
+  sqlite:
+    build:
+      context: docker/sqlite
+      dockerfile: Dockerfile
+    stdin_open: true   # keep STDIN open for the interactive REPL
+    tty: true          # allocate a pseudo-TTY for the sqlite3 shell

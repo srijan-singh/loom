@@ -17,6 +17,7 @@
 
 package com.loom;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loom.event.EventType;
 import com.loom.event.WorkflowEvent;
 import com.loom.transport.LocalServer;
@@ -37,14 +38,14 @@ public class Main {
         localServer.start(port);
         System.out.println("Loom engine listening on port " + port);
 
+        ObjectMapper mapper = new ObjectMapper();
         new Thread(() -> {
             try {
                 Thread.sleep(2000);
                 WorkflowEvent testflowEvent = WorkflowEvent.builder()
                         .eventType(EventType.SESSION_STARTED)
                         .sessionId("test-123")
-                        .timestamp(System.currentTimeMillis())
-                        .data(Map.of("message", "Hello World!"))
+                        .data(mapper.valueToTree(Map.of("message", "Hello World!")))
                         .build();
 
                 sseManager.broadcast(testflowEvent);

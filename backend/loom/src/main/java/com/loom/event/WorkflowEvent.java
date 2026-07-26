@@ -18,13 +18,14 @@
 package com.loom.event;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.NullNode;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.jspecify.annotations.Nullable;
-
-import java.util.Map;
 
 @Data
 @Builder
@@ -56,16 +57,25 @@ public class WorkflowEvent {
     private String agentExecutionId;
 
     /**
-     * Unix timestamp (milliseconds) when this event occurred
+     * Unix epoch milliseconds when this event occurred.
+     * Serialized as "timestampMs" in JSON so the unit is unambiguous to consumers.
      */
-    private long timestamp;
+    @JsonProperty("timestampMs")
+    @Builder.Default
+    private long timestampMs = System.currentTimeMillis();
 
     /**
-     * Event-specific payload. Structure depends on eventType.
-     * Examples:
-     * - SESSION_STARTED: {"workflowName": "...", "userId": "..."}
-     * - AGENT_TOKEN: {"token": "Hello", "index": 0}
-     * - NODE_FAILED: {"error": "...", "retryable": true}
+     * Event-specific payload serialized as a JSON object.
+     * Structure is event-type-specific; consumers should inspect {@code eventType}
+     * before reading fields. Examples:
+     * <pre>
+     *   SESSION_STARTED : {"workflowName": "...", "userId": "..."}
+     *   AGENT_TOKEN     : {"token": "Hello", "index": 0}
+     *   NODE_FAILED     : {"error": "...", "retryable": true}
+     * </pre>
+     * Use {@code ObjectMapper.valueToTree(map)} to convert a plain Map when building.
      */
-    private Map<String, Object> data;
+    @Nullable
+    @Builder.Default
+    private JsonNode data = NullNode.getInstance();
 }

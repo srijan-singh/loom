@@ -73,8 +73,7 @@ class LocalServerBVT {
             WorkflowEvent event = WorkflowEvent.builder()
                     .eventType(EventType.SESSION_STARTED)
                     .sessionId("bvt-session-1")
-                    .timestamp(System.currentTimeMillis())
-                    .data(Map.of("message", "hello"))
+                    .data(MAPPER.valueToTree(Map.of("message", "hello")))
                     .build();
             sseManager.broadcast(event);
 
@@ -87,7 +86,8 @@ class LocalServerBVT {
             assertEquals("SESSION_STARTED", json.path("eventType").asText());
             assertEquals("bvt-session-1",   json.path("sessionId").asText());
             assertEquals("hello",            json.path("data").path("message").asText());
-            assertTrue(json.path("timestamp").asLong() > 0, "timestamp must be positive");
+            long ts = json.path("timestampMs").asLong();
+            assertTrue(ts > 1_700_000_000_000L, "timestampMs must be a plausible epoch-ms value");
 
         } finally {
             client.disconnect();

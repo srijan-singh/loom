@@ -1,29 +1,63 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.loom.storage.repository;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loom.domain.*;
 import com.loom.storage.DatabaseManager;
 
-import java.sql.*;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-public class WorkflowRepository {
+public class WorkflowRepository extends BaseRepository<WorkflowDefinition> {
 
-    private final DatabaseManager db;
-    private final ObjectMapper mapper;
+    // column names
+    private static final String COL_NAME = "name";
+    private static final String COL_TYPE = "type";
+    private static final String COL_CREATED_BY = "created_by";
+    private static final String COL_GRAPH = "graph";
+    private static final String COL_CREATED_AT = "created_at";
+    private static final String COL_UPDATED_AT = "updated_at";
+
+    // queries
+    private static final String TABLE = "workflow_definitions";
+
+    private static final String FIND_BY_TYPE = "SELECT * FROM workflow_definitions WHERE type = ?";
+
+    private static final String SAVE = upsert(
+            TABLE,
+            COL_ID,
+            COL_NAME,
+            COL_TYPE,
+            COL_CREATED_BY,
+            COL_GRAPH,
+            COL_CREATED_AT,
+            COL_UPDATED_AT
+    );
 
     public WorkflowRepository(DatabaseManager db) {
-        this.db = db;
-        this.mapper = new ObjectMapper();
+        super(db, TABLE);
+        setMapper(this::map);
     }
 
     public void save(WorkflowDefinition wf) {
-        String sql = "INSERT INTO workflow_definitions (id, name, type, created_by, graph, created_at, updated_at) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?) " +
-                     "ON CONFLICT(id) DO UPDATE SET " +
-                     "name=excluded.name, type=excluded.type, created_by=excluded.created_by, " +
-                     "graph=excluded.graph, updated_at=excluded.updated_at";
-        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+        db().update(SAVE, ps -> {
             ps.setString(1, wf.getId());
             ps.setString(2, wf.getName());
             ps.setString(3, wf.getType() != null ? wf.getType().name() : null);
@@ -31,73 +65,24 @@ public class WorkflowRepository {
             ps.setString(5, graphToJson(wf));
             ps.setLong(6, wf.getCreatedAt());
             ps.setLong(7, wf.getUpdatedAt());
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to save WorkflowDefinition", e);
-        }
-    }
-
-    public Optional<WorkflowDefinition> findById(String id) {
-        String sql = "SELECT * FROM workflow_definitions WHERE id = ?";
-        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, id);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return Optional.of(map(rs));
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to find WorkflowDefinition by id", e);
-        }
-        return Optional.empty();
-    }
-
-    public List<WorkflowDefinition> findAll() {
-        String sql = "SELECT * FROM workflow_definitions";
-        List<WorkflowDefinition> result = new ArrayList<>();
-        try (Connection conn = db.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            while (rs.next()) result.add(map(rs));
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to find all WorkflowDefinitions", e);
-        }
-        return result;
-    }
-
-    public void delete(String id) {
-        String sql = "DELETE FROM workflow_definitions WHERE id = ?";
-        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, id);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to delete WorkflowDefinition", e);
-        }
+        });
     }
 
     public List<WorkflowDefinition> findByType(WorkflowType type) {
-        String sql = "SELECT * FROM workflow_definitions WHERE type = ?";
-        List<WorkflowDefinition> result = new ArrayList<>();
-        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, type.name());
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) result.add(map(rs));
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to find WorkflowDefinitions by type", e);
-        }
-        return result;
+        return db().queryList(FIND_BY_TYPE, ps -> ps.setString(1, type.name()), this::map);
     }
 
-    private WorkflowDefinition map(ResultSet rs) throws SQLException {
+    private WorkflowDefinition map(java.sql.ResultSet rs) throws java.sql.SQLException {
         WorkflowDefinition wf = new WorkflowDefinition();
-        wf.setId(rs.getString("id"));
-        wf.setName(rs.getString("name"));
-        String type = rs.getString("type");
+        wf.setId(rs.getString(COL_ID));
+        wf.setName(rs.getString(COL_NAME));
+        String type = rs.getString(COL_TYPE);
         if (type != null) wf.setType(WorkflowType.valueOf(type));
-        String createdBy = rs.getString("created_by");
+        String createdBy = rs.getString(COL_CREATED_BY);
         if (createdBy != null) wf.setCreatedBy(WorkflowCreatedBy.valueOf(createdBy));
-        wf.setCreatedAt(rs.getLong("created_at"));
-        wf.setUpdatedAt(rs.getLong("updated_at"));
-        applyGraph(wf, rs.getString("graph"));
+        wf.setCreatedAt(rs.getLong(COL_CREATED_AT));
+        wf.setUpdatedAt(rs.getLong(COL_UPDATED_AT));
+        applyGraph(wf, rs.getString(COL_GRAPH));
         return wf;
     }
 
@@ -106,7 +91,7 @@ public class WorkflowRepository {
             Map<String, Object> graph = new HashMap<>();
             graph.put("nodes", wf.getNodes() != null ? wf.getNodes() : Collections.emptyList());
             graph.put("edges", wf.getEdges() != null ? wf.getEdges() : Collections.emptyList());
-            return mapper.writeValueAsString(graph);
+            return JSON.writeValueAsString(graph);
         } catch (Exception e) {
             throw new RuntimeException("Failed to serialize workflow graph", e);
         }
@@ -115,17 +100,11 @@ public class WorkflowRepository {
     private void applyGraph(WorkflowDefinition wf, String json) {
         if (json == null || json.isBlank()) return;
         try {
-            Map<?, ?> graph = mapper.readValue(json, Map.class);
-            List<WorkflowNode> nodes = mapper.convertValue(
-                graph.get("nodes"),
-                mapper.getTypeFactory().constructCollectionType(List.class, WorkflowNode.class)
-            );
-            List<WorkflowEdge> edges = mapper.convertValue(
-                graph.get("edges"),
-                mapper.getTypeFactory().constructCollectionType(List.class, WorkflowEdge.class)
-            );
-            wf.setNodes(nodes);
-            wf.setEdges(edges);
+            Map<?, ?> graph = JSON.readValue(json, Map.class);
+            wf.setNodes(JSON.convertValue(graph.get("nodes"),
+                    JSON.getTypeFactory().constructCollectionType(List.class, WorkflowNode.class)));
+            wf.setEdges(JSON.convertValue(graph.get("edges"),
+                    JSON.getTypeFactory().constructCollectionType(List.class, WorkflowEdge.class)));
         } catch (Exception e) {
             throw new RuntimeException("Failed to deserialize workflow graph", e);
         }

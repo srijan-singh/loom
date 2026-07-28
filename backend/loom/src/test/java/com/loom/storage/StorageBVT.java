@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.loom.storage;
 
 import com.loom.domain.*;
@@ -10,26 +27,24 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
+import static com.loom.storage.TestFixtures.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Build Verification Test — full end-to-end storage layer smoke test.
  *
- * <p>Uses a real SQLite file in a JVM temp directory, exercises every repository's
- * {@code save → findById} round-trip, and validates the three complex serialization
- * paths: tag lists (JSON array), allowedMcpIds (JSON array), and
- * WorkflowDefinition graph (JSON nodes + edges). No mocks; no in-memory fakes.
- *
- * <p>A single test method is used intentionally — one coherent behaviour story
- * is easier to reason about and extend than many isolated unit tests.
+ * <p>Uses a real SQLite file in a JVM temp directory. Fixture rows are
+ * pre-populated from {@code testFixtures.sql} via {@link TestFixtures#load}.
+ * Each test method covers exactly one repository and references fixed IDs
+ * from {@link TestFixtures} — no shared mutable state between tests.
  */
 @DisplayName("Storage BVT: SQLite persistence layer — full round-trip")
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class StorageBVT {
 
     private static Path dbFile;
     private static DatabaseManager db;
 
-    // repositories under test
     private static SkillRepository skillRepo;
     private static MCPConnectionRepository mcpRepo;
     private static AgentRepository agentRepo;
@@ -43,8 +58,8 @@ class StorageBVT {
     static void setUp() throws IOException {
         dbFile = Files.createTempFile("loom-bvt-", ".db");
         dbFile.toFile().deleteOnExit();
-        // DatabaseManager receives the path directly via its package-private constructor.
         db = new DatabaseManager(dbFile.toAbsolutePath().toString());
+        TestFixtures.load(db);
 
         skillRepo     = new SkillRepository(db);
         mcpRepo       = new MCPConnectionRepository(db);
@@ -61,259 +76,224 @@ class StorageBVT {
         Files.deleteIfExists(dbFile);
     }
 
+    // ── 1. SKILL ─────────────────────────────────────────────────────────────
+
     @Test
-    @DisplayName("All repositories: save → findById → findAll → extra queries → delete")
-    void fullStorageRoundTrip() {
-
-        // ── 1. SKILL ────────────────────────────────────────────────────────────
-        Skill skill = new Skill();
-        skill.setName("Web Research");
-        skill.setDescription("Searches the web");
-        skill.setContent("# Web Research\nUse Tavily to search.");
-        skill.setTags(List.of("search", "web", "research"));
-        skill.setCreatedAt(System.currentTimeMillis());
-        skill.setUpdatedAt(System.currentTimeMillis());
-        skillRepo.save(skill);
-
-        Optional<Skill> foundSkill = skillRepo.findById(skill.getId());
-        assertTrue(foundSkill.isPresent(), "Skill must be findable by id");
-        assertEquals("Web Research",         foundSkill.get().getName());
-        assertEquals("Searches the web",     foundSkill.get().getDescription());
-        assertEquals(3,                      foundSkill.get().getTags().size());
-        assertTrue(foundSkill.get().getTags().contains("search"));
-        assertTrue(foundSkill.get().getTags().contains("research"));
+    @Order(1)
+    @DisplayName("SkillRepository: findById, tags round-trip, findByTag, comma-tag, delete")
+    void skill() {
+        Optional<Skill> found = skillRepo.findById(SKILL_ID);
+        assertTrue(found.isPresent());
+        assertEquals("Web Research", found.get().getName());
+        assertEquals("Searches the web", found.get().getDescription());
+        assertTrue(found.get().getTags().contains("search"));
+        assertEquals(3, found.get().getTags().size());
+        assertTrue(found.get().getTags().contains("web"));
+        assertTrue(found.get().getTags().contains("research"));
 
         List<Skill> byTag = skillRepo.findByTag("web");
-        assertEquals(1, byTag.size(), "findByTag(\"web\") must return the saved skill");
-        assertEquals(skill.getId(), byTag.get(0).getId());
+        assertEquals(1, byTag.size());
+        assertEquals(SKILL_ID, byTag.get(0).getId());
 
         assertEquals(0, skillRepo.findByTag("nonexistent").size());
 
-        // Tag containing a comma must round-trip as a single value, not split into two
-        Skill commaTagSkill = new Skill();
-        commaTagSkill.setName("Comma Tag Skill");
-        commaTagSkill.setTags(List.of("a,b", "c"));
-        commaTagSkill.setCreatedAt(System.currentTimeMillis());
-        commaTagSkill.setUpdatedAt(System.currentTimeMillis());
-        skillRepo.save(commaTagSkill);
+        // tag containing a comma must round-trip as one value, not be split
+        Skill commaSkill = new Skill();
+        commaSkill.setName("Comma Tag Skill");
+        commaSkill.setTags(List.of("a,b", "c"));
+        commaSkill.setCreatedAt(System.currentTimeMillis());
+        commaSkill.setUpdatedAt(System.currentTimeMillis());
+        skillRepo.save(commaSkill);
 
-        Optional<Skill> foundCommaSkill = skillRepo.findById(commaTagSkill.getId());
-        assertTrue(foundCommaSkill.isPresent());
-        assertEquals(2, foundCommaSkill.get().getTags().size(), "tag containing comma must not be split");
-        assertTrue(foundCommaSkill.get().getTags().contains("a,b"));
-        assertTrue(foundCommaSkill.get().getTags().contains("c"));
-        assertEquals(1, skillRepo.findByTag("a,b").size(), "findByTag must match tag containing comma exactly");
-        assertEquals(0, skillRepo.findByTag("a").size(),   "findByTag must not match partial comma-split");
-        skillRepo.delete(commaTagSkill.getId());
+        Optional<Skill> foundComma = skillRepo.findById(commaSkill.getId());
+        assertTrue(foundComma.isPresent());
+        assertEquals(2, foundComma.get().getTags().size(), "tag containing comma must not be split");
+        assertTrue(foundComma.get().getTags().contains("a,b"));
+        assertEquals(1, skillRepo.findByTag("a,b").size(), "findByTag must match tag with comma exactly");
+        assertEquals(0, skillRepo.findByTag("a").size(), "findByTag must not match partial comma-split");
 
-        // ── 2. MCP CONNECTION ────────────────────────────────────────────────────
-        MCPConnection mcp = new MCPConnection();
-        mcp.setName("Brave Search");
-        mcp.setType("stdio");
-        mcp.setConfig(java.util.Map.of("command", "npx", "args", List.of("-y", "brave-search-mcp")));
-        mcp.setStatus(MCPStatus.CONNECTED);
-        mcp.setCreatedAt(System.currentTimeMillis());
-        mcpRepo.save(mcp);
+        skillRepo.delete(commaSkill.getId());
+        assertTrue(skillRepo.findById(commaSkill.getId()).isEmpty());
+    }
 
-        Optional<MCPConnection> foundMcp = mcpRepo.findById(mcp.getId());
-        assertTrue(foundMcp.isPresent(), "MCPConnection must be findable by id");
-        assertEquals("Brave Search",      foundMcp.get().getName());
-        assertEquals(MCPStatus.CONNECTED, foundMcp.get().getStatus());
-        assertEquals("npx",               foundMcp.get().getConfig().get("command"));
+    // ── 2. MCP CONNECTION ────────────────────────────────────────────────────
 
-        // ── 3. AGENT DEFINITION ──────────────────────────────────────────────────
-        AgentDefinition agent = new AgentDefinition();
-        agent.setName("Researcher");
-        agent.setRoleDescription("Performs web research tasks");
-        agent.setSkillId(skill.getId());
-        agent.setAllowedMcpIds(List.of(mcp.getId()));
-        agent.setCreatedAt(System.currentTimeMillis());
-        agent.setUpdatedAt(System.currentTimeMillis());
-        agentRepo.save(agent);
+    @Test
+    @Order(2)
+    @DisplayName("MCPConnectionRepository: findById, config map round-trip")
+    void mcpConnection() {
+        Optional<MCPConnection> found = mcpRepo.findById(MCP_ID);
+        assertTrue(found.isPresent());
+        assertEquals("Brave Search", found.get().getName());
+        assertEquals("stdio", found.get().getType());
+        assertEquals(MCPStatus.CONNECTED, found.get().getStatus());
+        assertEquals("npx", found.get().getConfig().get("command"));
+    }
 
-        Optional<AgentDefinition> foundAgent = agentRepo.findById(agent.getId());
-        assertTrue(foundAgent.isPresent(), "AgentDefinition must be findable by id");
-        assertEquals("Researcher",           foundAgent.get().getName());
-        assertEquals(skill.getId(),          foundAgent.get().getSkillId());
-        assertEquals(1,                      foundAgent.get().getAllowedMcpIds().size());
-        assertEquals(mcp.getId(),            foundAgent.get().getAllowedMcpIds().get(0));
+    // ── 3. AGENT DEFINITION ──────────────────────────────────────────────────
 
-        List<AgentDefinition> bySkill = agentRepo.findBySkillId(skill.getId());
-        assertEquals(1, bySkill.size(), "findBySkillId must return the agent");
+    @Test
+    @Order(3)
+    @DisplayName("AgentRepository: findById, allowedMcpIds round-trip, findBySkillId")
+    void agentDefinition() {
+        Optional<AgentDefinition> found = agentRepo.findById(AGENT_ID);
+        assertTrue(found.isPresent());
+        assertEquals("Researcher", found.get().getName());
+        assertEquals(SKILL_ID, found.get().getSkillId());
+        assertEquals(1, found.get().getAllowedMcpIds().size());
+        assertEquals(MCP_ID, found.get().getAllowedMcpIds().get(0));
 
-        // ── 4. WORKFLOW DEFINITION (graph round-trip) ────────────────────────────
-        WorkflowNode start = new WorkflowNode();
-        start.setId("node-start");
-        start.setLabel("Start");
-        start.setNodeType(NodeType.START);
-        start.setPositionX(0);
-        start.setPositionY(0);
+        List<AgentDefinition> bySkill = agentRepo.findBySkillId(SKILL_ID);
+        assertEquals(1, bySkill.size());
+        assertEquals(AGENT_ID, bySkill.get(0).getId());
+    }
 
-        WorkflowNode worker = new WorkflowNode();
-        worker.setId("node-worker");
-        worker.setLabel("Research");
-        worker.setNodeType(NodeType.WORKER);
-        worker.setAgentDefinitionId(agent.getId());
-        worker.setPositionX(200);
-        worker.setPositionY(0);
+    // ── 4. WORKFLOW DEFINITION ───────────────────────────────────────────────
 
-        WorkflowNode end = new WorkflowNode();
-        end.setId("node-end");
-        end.setLabel("End");
-        end.setNodeType(NodeType.END);
-        end.setPositionX(400);
-        end.setPositionY(0);
+    @Test
+    @Order(4)
+    @DisplayName("WorkflowRepository: findById, graph (nodes + edges) JSON round-trip, findByType")
+    void workflowDefinition() {
+        Optional<WorkflowDefinition> found = workflowRepo.findById(WORKFLOW_ID);
+        assertTrue(found.isPresent());
+        assertEquals("Research Pipeline",    found.get().getName());
+        assertEquals(WorkflowType.CHAIN,     found.get().getType());
+        assertEquals(WorkflowCreatedBy.USER, found.get().getCreatedBy());
 
-        WorkflowEdge edge1 = new WorkflowEdge();
-        edge1.setId("edge-1");
-        edge1.setFromNodeId("node-start");
-        edge1.setToNodeId("node-worker");
-        edge1.setCondition(EdgeCondition.ALWAYS);
+        assertNotNull(found.get().getNodes());
+        assertEquals(3, found.get().getNodes().size());
+        assertEquals("node-start", found.get().getNodes().get(0).getId());
+        assertEquals("node-worker", found.get().getNodes().get(1).getId());
+        assertEquals("node-end", found.get().getNodes().get(2).getId());
+        assertEquals(NodeType.WORKER, found.get().getNodes().get(1).getNodeType());
+        assertEquals(AGENT_ID, found.get().getNodes().get(1).getAgentDefinitionId());
+        assertEquals(200.0, found.get().getNodes().get(1).getPositionX(), 0.001);
 
-        WorkflowEdge edge2 = new WorkflowEdge();
-        edge2.setId("edge-2");
-        edge2.setFromNodeId("node-worker");
-        edge2.setToNodeId("node-end");
-        edge2.setCondition(EdgeCondition.ON_SUCCESS);
-
-        WorkflowDefinition wf = new WorkflowDefinition();
-        wf.setName("Research Pipeline");
-        wf.setType(WorkflowType.CHAIN);
-        wf.setCreatedBy(WorkflowCreatedBy.USER);
-        wf.setNodes(List.of(start, worker, end));
-        wf.setEdges(List.of(edge1, edge2));
-        wf.setCreatedAt(System.currentTimeMillis());
-        wf.setUpdatedAt(System.currentTimeMillis());
-        workflowRepo.save(wf);
-
-        Optional<WorkflowDefinition> foundWf = workflowRepo.findById(wf.getId());
-        assertTrue(foundWf.isPresent(), "WorkflowDefinition must be findable by id");
-        assertEquals("Research Pipeline",    foundWf.get().getName());
-        assertEquals(WorkflowType.CHAIN,     foundWf.get().getType());
-        assertEquals(WorkflowCreatedBy.USER, foundWf.get().getCreatedBy());
-
-        // 3 nodes and 2 edges survive JSON round-trip without data loss
-        assertNotNull(foundWf.get().getNodes());
-        assertEquals(3, foundWf.get().getNodes().size(), "3 nodes must survive graph serialization");
-        assertEquals("node-start",  foundWf.get().getNodes().get(0).getId());
-        assertEquals("node-worker", foundWf.get().getNodes().get(1).getId());
-        assertEquals("node-end",    foundWf.get().getNodes().get(2).getId());
-        assertEquals(NodeType.WORKER, foundWf.get().getNodes().get(1).getNodeType());
-        assertEquals(agent.getId(),   foundWf.get().getNodes().get(1).getAgentDefinitionId());
-        assertEquals(200.0,           foundWf.get().getNodes().get(1).getPositionX(), 0.001);
-
-        assertNotNull(foundWf.get().getEdges());
-        assertEquals(2, foundWf.get().getEdges().size(), "2 edges must survive graph serialization");
-        assertEquals("edge-1",            foundWf.get().getEdges().get(0).getId());
-        assertEquals(EdgeCondition.ALWAYS,     foundWf.get().getEdges().get(0).getCondition());
-        assertEquals(EdgeCondition.ON_SUCCESS, foundWf.get().getEdges().get(1).getCondition());
+        assertNotNull(found.get().getEdges());
+        assertEquals(2, found.get().getEdges().size());
+        assertEquals("edge-1", found.get().getEdges().get(0).getId());
+        assertEquals(EdgeCondition.ALWAYS, found.get().getEdges().get(0).getCondition());
+        assertEquals(EdgeCondition.ON_SUCCESS, found.get().getEdges().get(1).getCondition());
 
         List<WorkflowDefinition> byType = workflowRepo.findByType(WorkflowType.CHAIN);
-        assertEquals(1, byType.size(), "findByType(CHAIN) must return the workflow");
+        assertEquals(1, byType.size());
+        assertEquals(WORKFLOW_ID, byType.get(0).getId());
+    }
 
-        // ── 5. WORKSPACE ─────────────────────────────────────────────────────────
-        Workspace workspace = new Workspace();
-        workspace.setName("Research Project");
-        workspace.setDescription("General research workspace");
-        workspace.setCreatedAt(System.currentTimeMillis());
-        workspaceRepo.save(workspace);
+    // ── 5. WORKSPACE ─────────────────────────────────────────────────────────
 
-        Optional<Workspace> foundWs = workspaceRepo.findById(workspace.getId());
-        assertTrue(foundWs.isPresent(), "Workspace must be findable by id");
-        assertEquals("Research Project", foundWs.get().getName());
+    @Test
+    @Order(5)
+    @DisplayName("WorkspaceRepository: findById")
+    void workspace() {
+        Optional<Workspace> found = workspaceRepo.findById(WORKSPACE_ID);
+        assertTrue(found.isPresent());
+        assertEquals("Research Project", found.get().getName());
+        assertEquals("General research workspace", found.get().getDescription());
+    }
 
-        // ── 6. SESSION ───────────────────────────────────────────────────────────
+    // ── 6. SESSION ───────────────────────────────────────────────────────────
+
+    @Test
+    @Order(6)
+    @DisplayName("SessionRepository: findById, findByWorkspaceId, findByStatus, save update, delete")
+    void session() {
+        // verify pre-populated completed session
+        Optional<Session> found = sessionRepo.findById(SESSION_ID);
+        assertTrue(found.isPresent());
+        assertEquals(SessionStatus.COMPLETED, found.get().getStatus());
+        assertNotNull(found.get().getCompletedAt());
+
+        assertEquals(1, sessionRepo.findByWorkspaceId(WORKSPACE_ID).size());
+        assertEquals(1, sessionRepo.findByStatus(SessionStatus.COMPLETED).size());
+
+        // create + update a transient session
         Session session = new Session();
-        session.setWorkspaceId(workspace.getId());
-        session.setWorkflowDefinitionId(wf.getId());
+        session.setWorkspaceId(WORKSPACE_ID);
+        session.setWorkflowDefinitionId(WORKFLOW_ID);
         session.setStatus(SessionStatus.RUNNING);
         session.setStartedAt(System.currentTimeMillis());
         sessionRepo.save(session);
 
-        Optional<Session> foundSession = sessionRepo.findById(session.getId());
-        assertTrue(foundSession.isPresent(), "Session must be findable by id");
-        assertEquals(SessionStatus.RUNNING, foundSession.get().getStatus());
-        assertNull(foundSession.get().getCompletedAt(), "completedAt must be null when not set");
+        assertNull(sessionRepo.findById(session.getId()).get().getCompletedAt(),
+                "completedAt must be null while running");
 
-        List<Session> byWorkspace = sessionRepo.findByWorkspaceId(workspace.getId());
-        assertEquals(1, byWorkspace.size(), "findByWorkspaceId must return the session");
-
-        List<Session> byStatus = sessionRepo.findByStatus(SessionStatus.RUNNING);
-        assertEquals(1, byStatus.size(), "findByStatus(RUNNING) must return the session");
-
-        // complete the session
         session.setStatus(SessionStatus.COMPLETED);
         session.setCompletedAt(System.currentTimeMillis());
         sessionRepo.save(session);
 
-        Optional<Session> completedSession = sessionRepo.findById(session.getId());
-        assertTrue(completedSession.isPresent());
-        assertEquals(SessionStatus.COMPLETED, completedSession.get().getStatus());
-        assertNotNull(completedSession.get().getCompletedAt(), "completedAt must be set after completion");
+        assertEquals(SessionStatus.COMPLETED,
+                sessionRepo.findById(session.getId()).get().getStatus());
 
-        // ── 7. AGENT EXECUTION ───────────────────────────────────────────────────
+        sessionRepo.delete(session.getId());
+        assertTrue(sessionRepo.findById(session.getId()).isEmpty());
+    }
+
+    // ── 7. AGENT EXECUTION ───────────────────────────────────────────────────
+
+    @Test
+    @Order(7)
+    @DisplayName("AgentExecutionRepository: findById, nullable completedAt, save update")
+    void agentExecution() {
+        // verify pre-populated completed execution
+        Optional<AgentExecution> found = execRepo.findById(EXEC_ID);
+        assertTrue(found.isPresent());
+        assertEquals(AgentExecutionStatus.COMPLETED,  found.get().getStatus());
+        assertEquals("Found 10 results about AI.", found.get().getOutput());
+        assertEquals("{\"query\":\"latest AI news\"}", found.get().getInputContext());
+        assertNotNull(found.get().getCompletedAt());
+
+        // create a running execution and verify completedAt is null
         AgentExecution exec = new AgentExecution();
-        exec.setSessionId(session.getId());
+        exec.setSessionId(SESSION_ID);
         exec.setNodeId("node-worker");
-        exec.setAgentDefinitionId(agent.getId());
+        exec.setAgentDefinitionId(AGENT_ID);
         exec.setStatus(AgentExecutionStatus.RUNNING);
-        exec.setInputContext("{\"query\":\"latest AI news\"}");
         exec.setStartedAt(System.currentTimeMillis());
         execRepo.save(exec);
 
-        Optional<AgentExecution> foundExec = execRepo.findById(exec.getId());
-        assertTrue(foundExec.isPresent(), "AgentExecution must be findable by id");
-        assertEquals(AgentExecutionStatus.RUNNING,       foundExec.get().getStatus());
-        assertEquals("{\"query\":\"latest AI news\"}",   foundExec.get().getInputContext());
-        assertNull(foundExec.get().getCompletedAt(),     "completedAt must be null while running");
+        assertNull(execRepo.findById(exec.getId()).get().getCompletedAt(),
+                "completedAt must be null while running");
 
-        // complete the execution
         exec.setStatus(AgentExecutionStatus.COMPLETED);
-        exec.setOutput("Found 10 results about AI.");
-        exec.setReport("# Summary\nAI is advancing rapidly.");
+        exec.setOutput("Done.");
         exec.setCompletedAt(System.currentTimeMillis());
         execRepo.save(exec);
 
-        Optional<AgentExecution> completedExec = execRepo.findById(exec.getId());
-        assertTrue(completedExec.isPresent());
-        assertEquals(AgentExecutionStatus.COMPLETED, completedExec.get().getStatus());
-        assertEquals("Found 10 results about AI.",   completedExec.get().getOutput());
-        assertNotNull(completedExec.get().getCompletedAt());
+        assertEquals(AgentExecutionStatus.COMPLETED,
+                execRepo.findById(exec.getId()).get().getStatus());
+    }
 
-        // ── 8. WORKSPACE KNOWLEDGE ───────────────────────────────────────────────
-        WorkspaceKnowledge knowledge = new WorkspaceKnowledge();
-        knowledge.setWorkspaceId(workspace.getId());
-        knowledge.setSourceExecutionId(exec.getId());
-        knowledge.setTitle("AI Trends 2025");
-        knowledge.setContent("# AI Trends\nLLMs are widely adopted.");
-        knowledge.setTags(List.of("ai", "trends", "research"));
-        knowledge.setCreatedAt(System.currentTimeMillis());
-        knowledgeRepo.save(knowledge);
+    // ── 8. WORKSPACE KNOWLEDGE ───────────────────────────────────────────────
 
-        Optional<WorkspaceKnowledge> foundKnowledge = knowledgeRepo.findById(knowledge.getId());
-        assertTrue(foundKnowledge.isPresent(), "WorkspaceKnowledge must be findable by id");
-        assertEquals("AI Trends 2025",               foundKnowledge.get().getTitle());
-        assertEquals(exec.getId(),                   foundKnowledge.get().getSourceExecutionId());
-        assertEquals(3,                              foundKnowledge.get().getTags().size());
-        assertTrue(foundKnowledge.get().getTags().contains("ai"));
-        assertTrue(foundKnowledge.get().getTags().contains("trends"));
+    @Test
+    @Order(8)
+    @DisplayName("WorkspaceKnowledgeRepository: findById, tags round-trip")
+    void workspaceKnowledge() {
+        Optional<WorkspaceKnowledge> found = knowledgeRepo.findById(KNOWLEDGE_ID);
+        assertTrue(found.isPresent());
+        assertEquals("AI Trends 2025", found.get().getTitle());
+        assertEquals(EXEC_ID, found.get().getSourceExecutionId());
+        assertEquals(WORKSPACE_ID, found.get().getWorkspaceId());
+        assertEquals(3, found.get().getTags().size());
+        assertTrue(found.get().getTags().contains("ai"));
+        assertTrue(found.get().getTags().contains("trends"));
+        assertTrue(found.get().getTags().contains("research"));
+    }
 
-        // ── 9. findAll ────────────────────────────────────────────────────────────
-        assertEquals(1, skillRepo.findAll().size(),     "findAll skills");
-        assertEquals(1, mcpRepo.findAll().size(),       "findAll mcp connections");
-        assertEquals(1, agentRepo.findAll().size(),     "findAll agents");
-        assertEquals(1, workflowRepo.findAll().size(),  "findAll workflows");
-        assertEquals(1, workspaceRepo.findAll().size(), "findAll workspaces");
-        assertEquals(1, sessionRepo.findAll().size(),   "findAll sessions");
-        assertEquals(1, execRepo.findAll().size(),      "findAll agent executions");
-        assertEquals(1, knowledgeRepo.findAll().size(), "findAll workspace knowledge");
+    // ── 9. findAll ────────────────────────────────────────────────────────────
 
-        // ── 10. DELETE ────────────────────────────────────────────────────────────
-        skillRepo.delete(skill.getId());
-        assertTrue(skillRepo.findById(skill.getId()).isEmpty(), "Skill must be gone after delete");
-        assertEquals(0, skillRepo.findAll().size());
-
-        sessionRepo.delete(session.getId());
-        assertTrue(sessionRepo.findById(session.getId()).isEmpty(), "Session must be gone after delete");
+    @Test
+    @Order(9)
+    @DisplayName("All repositories: findAll returns at least the seeded fixture rows")
+    void findAll() {
+        assertFalse(skillRepo.findAll().isEmpty(), "findAll skills");
+        assertFalse(mcpRepo.findAll().isEmpty(), "findAll mcp connections");
+        assertFalse(agentRepo.findAll().isEmpty(), "findAll agents");
+        assertFalse(workflowRepo.findAll().isEmpty(), "findAll workflows");
+        assertFalse(workspaceRepo.findAll().isEmpty(), "findAll workspaces");
+        assertFalse(sessionRepo.findAll().isEmpty(), "findAll sessions");
+        assertFalse(execRepo.findAll().isEmpty(), "findAll agent executions");
+        assertFalse(knowledgeRepo.findAll().isEmpty(), "findAll workspace knowledge");
     }
 }

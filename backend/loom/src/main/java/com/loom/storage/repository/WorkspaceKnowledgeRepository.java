@@ -1,105 +1,79 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.loom.storage.repository;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loom.domain.WorkspaceKnowledge;
 import com.loom.storage.DatabaseManager;
 
-import java.sql.*;
-import java.util.*;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
-public class WorkspaceKnowledgeRepository {
+public class WorkspaceKnowledgeRepository extends BaseRepository<WorkspaceKnowledge> {
 
-    private final DatabaseManager db;
-    private final ObjectMapper mapper = new ObjectMapper();
+    // column names
+    private static final String COL_WORKSPACE_ID = "workspace_id";
+    private static final String COL_SOURCE_EXECUTION_ID = "source_execution_id";
+    private static final String COL_TITLE = "title";
+    private static final String COL_CONTENT = "content";
+    private static final String COL_TAGS = "tags";
+    private static final String COL_CREATED_AT = "created_at";
+
+    // queries
+    private static final String TABLE = "workspace_knowledge";
+
+    private static final String SAVE = upsert(
+            TABLE,
+            COL_ID,
+            COL_WORKSPACE_ID,
+            COL_SOURCE_EXECUTION_ID,
+            COL_TITLE,
+            COL_CONTENT,
+            COL_TAGS,
+            COL_CREATED_AT
+    );
 
     public WorkspaceKnowledgeRepository(DatabaseManager db) {
-        this.db = db;
+        super(db, TABLE);
+        setMapper(this::map);
     }
 
     public void save(WorkspaceKnowledge knowledge) {
-        String sql = "INSERT INTO workspace_knowledge (id, workspace_id, source_execution_id, title, content, tags, created_at) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?) " +
-                     "ON CONFLICT(id) DO UPDATE SET " +
-                     "workspace_id=excluded.workspace_id, source_execution_id=excluded.source_execution_id, " +
-                     "title=excluded.title, content=excluded.content, tags=excluded.tags";
-        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+        db().update(SAVE, ps -> {
             ps.setString(1, knowledge.getId());
             ps.setString(2, knowledge.getWorkspaceId());
             ps.setString(3, knowledge.getSourceExecutionId());
             ps.setString(4, knowledge.getTitle());
             ps.setString(5, knowledge.getContent());
-            ps.setString(6, tagsToString(knowledge.getTags()));
+            ps.setString(6, toJsonList(knowledge.getTags()));
             ps.setLong(7, knowledge.getCreatedAt());
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to save WorkspaceKnowledge", e);
-        }
-    }
-
-    public Optional<WorkspaceKnowledge> findById(String id) {
-        String sql = "SELECT * FROM workspace_knowledge WHERE id = ?";
-        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, id);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return Optional.of(map(rs));
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to find WorkspaceKnowledge by id", e);
-        }
-        return Optional.empty();
-    }
-
-    public List<WorkspaceKnowledge> findAll() {
-        String sql = "SELECT * FROM workspace_knowledge";
-        List<WorkspaceKnowledge> result = new ArrayList<>();
-        try (Connection conn = db.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            while (rs.next()) result.add(map(rs));
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to find all WorkspaceKnowledge", e);
-        }
-        return result;
-    }
-
-    public void delete(String id) {
-        String sql = "DELETE FROM workspace_knowledge WHERE id = ?";
-        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, id);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to delete WorkspaceKnowledge", e);
-        }
+        });
     }
 
     private WorkspaceKnowledge map(ResultSet rs) throws SQLException {
         WorkspaceKnowledge k = new WorkspaceKnowledge();
-        k.setId(rs.getString("id"));
-        k.setWorkspaceId(rs.getString("workspace_id"));
-        k.setSourceExecutionId(rs.getString("source_execution_id"));
-        k.setTitle(rs.getString("title"));
-        k.setContent(rs.getString("content"));
-        k.setTags(stringToTags(rs.getString("tags")));
-        k.setCreatedAt(rs.getLong("created_at"));
+        k.setId(rs.getString(COL_ID));
+        k.setWorkspaceId(rs.getString(COL_WORKSPACE_ID));
+        k.setSourceExecutionId(rs.getString(COL_SOURCE_EXECUTION_ID));
+        k.setTitle(rs.getString(COL_TITLE));
+        k.setContent(rs.getString(COL_CONTENT));
+        k.setTags(fromJsonList(rs.getString(COL_TAGS)));
+        k.setCreatedAt(rs.getLong(COL_CREATED_AT));
         return k;
     }
 
-    private String tagsToString(List<String> tags) {
-        if (tags == null || tags.isEmpty()) return "[]";
-        try {
-            return mapper.writeValueAsString(tags);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to serialize tags", e);
-        }
-    }
-
-    private List<String> stringToTags(String raw) {
-        if (raw == null || raw.isBlank()) return new ArrayList<>();
-        try {
-            return mapper.readValue(raw, new TypeReference<List<String>>() {});
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to deserialize tags", e);
-        }
-    }
 }

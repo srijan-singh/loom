@@ -52,15 +52,15 @@ CREATE TABLE IF NOT EXISTS workspaces (
 
 -- Workspace Workflows join table
 CREATE TABLE IF NOT EXISTS workspace_workflows (
-    workspace_id            TEXT,
-    workflow_definition_id  TEXT
+    workspace_id            TEXT    REFERENCES workspaces(id),
+    workflow_definition_id  TEXT    REFERENCES workflow_definitions(id)
 );
 
 -- Sessions table
 CREATE TABLE IF NOT EXISTS sessions (
     id                     TEXT    PRIMARY KEY,
-    workspace_id           TEXT,
-    workflow_definition_id TEXT,
+    workspace_id           TEXT    REFERENCES workspaces(id),
+    workflow_definition_id TEXT    REFERENCES workflow_definitions(id),
     status                 TEXT,
     started_at             INTEGER,
     completed_at           INTEGER
@@ -69,22 +69,22 @@ CREATE TABLE IF NOT EXISTS sessions (
 -- Agent Executions table
 CREATE TABLE IF NOT EXISTS agent_executions (
     id                  TEXT    PRIMARY KEY,
-    session_id          TEXT,
+    session_id          TEXT    REFERENCES sessions(id),
     node_id             TEXT,
-    agent_definition_id TEXT,
+    agent_definition_id TEXT    REFERENCES agent_definitions(id),
     status              TEXT,
     input_context       TEXT,
     output              TEXT,
     report              TEXT,
-    started_at          INTEGER,
+    started_at          INTEGER NOT NULL,
     completed_at        INTEGER
 );
 
 -- Workspace Knowledge table
 CREATE TABLE IF NOT EXISTS workspace_knowledge (
     id                   TEXT    PRIMARY KEY,
-    workspace_id         TEXT,
-    source_execution_id  TEXT,
+    workspace_id         TEXT    REFERENCES workspaces(id),
+    source_execution_id  TEXT    REFERENCES agent_executions(id),
     title                TEXT,
     content              TEXT,
     tags                 TEXT,

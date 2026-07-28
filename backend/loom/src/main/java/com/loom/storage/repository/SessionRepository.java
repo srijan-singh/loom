@@ -65,7 +65,7 @@ public class SessionRepository extends BaseRepository<Session> {
             ps.setString(4, session.getStatus() != null ? session.getStatus().name() : null);
             ps.setLong(5, session.getStartedAt());
             if (session.getCompletedAt() != null) ps.setLong(6, session.getCompletedAt());
-            else ps.setNull(6, Types.INTEGER);
+            else ps.setNull(6, Types.BIGINT);
         });
     }
 

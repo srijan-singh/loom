@@ -262,6 +262,9 @@ class StorageBVT {
 
         assertEquals(AgentExecutionStatus.COMPLETED,
                 execRepo.findById(exec.getId()).get().getStatus());
+
+        // cleanup — remove the transient execution so it does not appear in subsequent findAll()
+        execRepo.delete(exec.getId());
     }
 
     // ── 8. WORKSPACE KNOWLEDGE ───────────────────────────────────────────────

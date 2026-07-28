@@ -68,7 +68,11 @@ public class DatabaseManager {
     }
 
     public Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(jdbcUrl);
+        Connection conn = DriverManager.getConnection(jdbcUrl);
+        try (Statement st = conn.createStatement()) {
+            st.execute("PRAGMA foreign_keys = ON");
+        }
+        return conn;
     }
 
     // ── query helpers ─────────────────────────────────────────────────────────

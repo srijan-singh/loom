@@ -21,6 +21,7 @@ import com.loom.domain.AgentDefinition;
 import com.loom.storage.DatabaseManager;
 
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.List;
 
 public class AgentRepository extends BaseRepository<AgentDefinition> {
@@ -70,7 +71,7 @@ public class AgentRepository extends BaseRepository<AgentDefinition> {
         return db().queryList(FIND_BY_SKILL_ID, ps -> ps.setString(1, skillId), this::map);
     }
 
-    private AgentDefinition map(ResultSet rs) throws java.sql.SQLException {
+    private AgentDefinition map(ResultSet rs) throws SQLException {
         AgentDefinition a = new AgentDefinition();
         a.setId(rs.getString(COL_ID));
         a.setName(rs.getString(COL_NAME));

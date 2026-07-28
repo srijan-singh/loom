@@ -149,6 +149,12 @@ abstract class BaseRepository<T> {
      * @param cols  column names in bind order; first column must be {@code "id"}
      */
     protected static String upsert(String table, String... cols) {
+        if (cols == null || cols.length == 0) {
+            throw new IllegalArgumentException("upsert: cols must not be empty");
+        }
+        if (!"id".equals(cols[0])) {
+            throw new IllegalArgumentException("upsert: first column must be \"id\", got: " + cols[0]);
+        }
         String colList    = String.join(", ", cols);
         String placeholders = "?, ".repeat(cols.length - 1) + "?";
 

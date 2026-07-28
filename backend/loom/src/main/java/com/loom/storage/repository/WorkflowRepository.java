@@ -101,9 +101,11 @@ public class WorkflowRepository extends BaseRepository<WorkflowDefinition> {
         if (json == null || json.isBlank()) return;
         try {
             Map<?, ?> graph = JSON.readValue(json, Map.class);
-            wf.setNodes(JSON.convertValue(graph.get("nodes"),
+            Object nodes = graph.get("nodes");
+            Object edges = graph.get("edges");
+            wf.setNodes(JSON.convertValue(nodes != null ? nodes : Collections.emptyList(),
                     JSON.getTypeFactory().constructCollectionType(List.class, WorkflowNode.class)));
-            wf.setEdges(JSON.convertValue(graph.get("edges"),
+            wf.setEdges(JSON.convertValue(edges != null ? edges : Collections.emptyList(),
                     JSON.getTypeFactory().constructCollectionType(List.class, WorkflowEdge.class)));
         } catch (Exception e) {
             throw new RuntimeException("Failed to deserialize workflow graph", e);

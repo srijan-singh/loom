@@ -5,7 +5,7 @@
 
 INSERT INTO skills (id, name, description, content, tags, created_at, updated_at) VALUES
   ('skill-web-research', 'Web Research', 'Searches the web',
-   '# Web Research\nUse Tavily to search.',
+   '# Web Research'||char(10)||'Use Tavily to search.',
    '["search","web","research"]',
    1700000000000, 1700000000000);
 
@@ -39,11 +39,11 @@ INSERT INTO agent_executions (id, session_id, node_id, agent_definition_id, stat
   ('exec-research', 'session-completed', 'node-worker', 'agent-researcher', 'COMPLETED',
    '{"query":"latest AI news"}',
    'Found 10 results about AI.',
-   '# Summary\nAI is advancing rapidly.',
+   '# Summary'||char(10)||'AI is advancing rapidly.',
    1700000001000, 1700000002000);
 
 INSERT INTO workspace_knowledge (id, workspace_id, source_execution_id, title, content, tags, created_at) VALUES
   ('knowledge-ai-trends', 'ws-research', 'exec-research',
-   'AI Trends 2025', '# AI Trends\nLLMs are widely adopted.',
+   'AI Trends 2025', '# AI Trends'||char(10)||'LLMs are widely adopted.',
    '["ai","trends","research"]',
    1700000002000);

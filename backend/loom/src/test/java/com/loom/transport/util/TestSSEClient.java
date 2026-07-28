@@ -17,7 +17,6 @@
 
 package com.loom.transport.util;
 
-import lombok.Getter;
 import okhttp3.*;
 
 import java.io.IOException;
@@ -31,7 +30,6 @@ import java.util.concurrent.TimeUnit;
  * Uses a background thread with a synchronous call so we can signal
  * "connected" the moment the 200 header arrives.
  */
-@Getter
 public class TestSSEClient {
 
     private final int clientId;
@@ -43,6 +41,8 @@ public class TestSSEClient {
 
     private volatile boolean connected = false;
     private volatile Call call;
+
+    public boolean isConnected() { return connected; }
 
     private static final OkHttpClient HTTP = new OkHttpClient.Builder()
             .readTimeout(0, TimeUnit.MILLISECONDS)  // infinite — SSE is long-lived

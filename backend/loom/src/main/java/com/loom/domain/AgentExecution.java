@@ -1,7 +1,31 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.loom.domain;
+
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.UUID;
 
+@Getter
+@Setter
+@EqualsAndHashCode
 public class AgentExecution {
 
     private String id;
@@ -18,34 +42,4 @@ public class AgentExecution {
     public AgentExecution() {
         this.id = UUID.randomUUID().toString();
     }
-
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
-
-    public String getSessionId() { return sessionId; }
-    public void setSessionId(String sessionId) { this.sessionId = sessionId; }
-
-    public String getNodeId() { return nodeId; }
-    public void setNodeId(String nodeId) { this.nodeId = nodeId; }
-
-    public String getAgentDefinitionId() { return agentDefinitionId; }
-    public void setAgentDefinitionId(String agentDefinitionId) { this.agentDefinitionId = agentDefinitionId; }
-
-    public AgentExecutionStatus getStatus() { return status; }
-    public void setStatus(AgentExecutionStatus status) { this.status = status; }
-
-    public String getInputContext() { return inputContext; }
-    public void setInputContext(String inputContext) { this.inputContext = inputContext; }
-
-    public String getOutput() { return output; }
-    public void setOutput(String output) { this.output = output; }
-
-    public String getReport() { return report; }
-    public void setReport(String report) { this.report = report; }
-
-    public long getStartedAt() { return startedAt; }
-    public void setStartedAt(long startedAt) { this.startedAt = startedAt; }
-
-    public Long getCompletedAt() { return completedAt; }
-    public void setCompletedAt(Long completedAt) { this.completedAt = completedAt; }
 }

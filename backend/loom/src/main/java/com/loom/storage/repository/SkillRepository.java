@@ -1,123 +1,88 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.loom.storage.repository;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loom.domain.Skill;
 import com.loom.storage.DatabaseManager;
 
-import java.sql.*;
-import java.util.ArrayList;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.List;
-import java.util.Optional;
 
-public class SkillRepository {
+public class SkillRepository extends BaseRepository<Skill> {
 
-    private final DatabaseManager db;
-    private final ObjectMapper mapper = new ObjectMapper();
+    // column names
+    private static final String COL_NAME = "name";
+    private static final String COL_DESCRIPTION = "description";
+    private static final String COL_CONTENT = "content";
+    private static final String COL_TAGS = "tags";
+    private static final String COL_CREATED_AT = "created_at";
+    private static final String COL_UPDATED_AT = "updated_at";
+
+    // queries
+    private static final String TABLE = "skills";
+
+    private static final String FIND_BY_TAG = String.join(" ",
+            "SELECT DISTINCT s.* FROM skills s,",
+            " json_each(s.tags) t WHERE t.value = ?");
+
+    private static final String SAVE = upsert(
+            TABLE,
+            COL_ID,
+            COL_NAME,
+            COL_DESCRIPTION,
+            COL_CONTENT,
+            COL_TAGS,
+            COL_CREATED_AT,
+            COL_UPDATED_AT
+    );
 
     public SkillRepository(DatabaseManager db) {
-        this.db = db;
+        super(db, TABLE);
+        setMapper(this::map);
     }
 
     public void save(Skill skill) {
-        String sql = "INSERT INTO skills (id, name, description, content, tags, created_at, updated_at) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?) " +
-                     "ON CONFLICT(id) DO UPDATE SET " +
-                     "name=excluded.name, description=excluded.description, content=excluded.content, " +
-                     "tags=excluded.tags, updated_at=excluded.updated_at";
-        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+        db().update(SAVE, ps -> {
             ps.setString(1, skill.getId());
             ps.setString(2, skill.getName());
             ps.setString(3, skill.getDescription());
             ps.setString(4, skill.getContent());
-            ps.setString(5, tagsToString(skill.getTags()));
+            ps.setString(5, toJsonList(skill.getTags()));
             ps.setLong(6, skill.getCreatedAt());
             ps.setLong(7, skill.getUpdatedAt());
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to save Skill", e);
-        }
-    }
-
-    public Optional<Skill> findById(String id) {
-        String sql = "SELECT * FROM skills WHERE id = ?";
-        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, id);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return Optional.of(map(rs));
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to find Skill by id", e);
-        }
-        return Optional.empty();
-    }
-
-    public List<Skill> findAll() {
-        String sql = "SELECT * FROM skills";
-        List<Skill> result = new ArrayList<>();
-        try (Connection conn = db.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            while (rs.next()) result.add(map(rs));
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to find all Skills", e);
-        }
-        return result;
-    }
-
-    public void delete(String id) {
-        String sql = "DELETE FROM skills WHERE id = ?";
-        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, id);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to delete Skill", e);
-        }
+        });
     }
 
     public List<Skill> findByTag(String tag) {
-        // json_each expands the JSON array so each element is matched exactly —
-        // tags containing commas round-trip correctly.
-        String sql = "SELECT DISTINCT s.* FROM skills s, json_each(s.tags) t WHERE t.value = ?";
-        List<Skill> result = new ArrayList<>();
-        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, tag);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) result.add(map(rs));
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to find Skills by tag", e);
-        }
-        return result;
+        return db().queryList(FIND_BY_TAG, ps -> ps.setString(1, tag), this::map);
     }
 
     private Skill map(ResultSet rs) throws SQLException {
         Skill s = new Skill();
-        s.setId(rs.getString("id"));
-        s.setName(rs.getString("name"));
-        s.setDescription(rs.getString("description"));
-        s.setContent(rs.getString("content"));
-        s.setTags(stringToTags(rs.getString("tags")));
-        s.setCreatedAt(rs.getLong("created_at"));
-        s.setUpdatedAt(rs.getLong("updated_at"));
+        s.setId(rs.getString(COL_ID));
+        s.setName(rs.getString(COL_NAME));
+        s.setDescription(rs.getString(COL_DESCRIPTION));
+        s.setContent(rs.getString(COL_CONTENT));
+        s.setTags(fromJsonList(rs.getString(COL_TAGS)));
+        s.setCreatedAt(rs.getLong(COL_CREATED_AT));
+        s.setUpdatedAt(rs.getLong(COL_UPDATED_AT));
         return s;
     }
 
-    private String tagsToString(List<String> tags) {
-        if (tags == null || tags.isEmpty()) return "[]";
-        try {
-            return mapper.writeValueAsString(tags);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to serialize tags", e);
-        }
-    }
-
-    private List<String> stringToTags(String raw) {
-        if (raw == null || raw.isBlank()) return new ArrayList<>();
-        try {
-            return mapper.readValue(raw, new TypeReference<List<String>>() {});
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to deserialize tags", e);
-        }
-    }
 }

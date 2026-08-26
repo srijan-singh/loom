@@ -33,6 +33,7 @@ import okhttp3.ResponseBody;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -69,7 +70,11 @@ public class ClaudeProvider implements LLMGateway {
     private final String model;
 
     public ClaudeProvider() {
-        this(new OkHttpClient(), new ObjectMapper());
+        this(new OkHttpClient.Builder()
+                .readTimeout(Duration.ZERO)          // streaming — no read deadline
+                .callTimeout(Duration.ofMinutes(10)) // hard ceiling per request
+                .build(),
+                new ObjectMapper());
     }
 
     /** Package-private for testing with a mock HTTP client. */
@@ -250,7 +255,11 @@ public class ClaudeProvider implements LLMGateway {
                 }
             }
         }
-        // Stream ended without message_stop — emit DONE anyway
+        // Stream ended without message_stop — flush any open tool call then emit DONE
+        if (pendingToolName != null) {
+            Map<String, Object> input = parseToolInput(pendingToolJson.toString());
+            consumer.accept(LLMResponse.toolCall(pendingToolName, input));
+        }
         consumer.accept(LLMResponse.done());
     }
 
@@ -265,11 +274,9 @@ public class ClaudeProvider implements LLMGateway {
         }
     }
 
-    /** Removes API key values from log strings as a safety net. */
+    /** Truncates {@code s} to 500 characters for safe logging. Returns {@code null} for {@code null} input. */
     private static String sanitize(String s) {
         if (s == null) return null;
-        // Truncate long bodies; never log the key itself (it's in the header, not the body,
-        // but guard against accidental inclusion in error payloads)
         return s.length() > 500 ? s.substring(0, 500) + "…" : s;
     }
 }

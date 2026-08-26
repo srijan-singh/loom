@@ -28,6 +28,8 @@ import com.loom.transport.SSEManager;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -49,11 +51,13 @@ import java.util.concurrent.Executors;
 @Slf4j
 public class AgentRunner {
 
-    private final LLMGateway  llmGateway;
-    private final MCPClient   mcpClient;
-    private final SSEManager  sseManager;
-    private final ObjectMapper mapper;
+    private final LLMGateway     llmGateway;
+    private final MCPClient      mcpClient;
+    private final SSEManager     sseManager;
+    private final ObjectMapper   mapper;
     private final ExecutorService executor;
+    /** Session IDs with an active run. Guards against concurrent duplicate submissions. */
+    private final Set<String>    activeSessions = ConcurrentHashMap.newKeySet();
 
     public AgentRunner(LLMGateway llmGateway, MCPClient mcpClient, SSEManager sseManager) {
         this.llmGateway = llmGateway;
@@ -69,12 +73,27 @@ public class AgentRunner {
 
     /**
      * Submits the LLM call to a background thread and returns immediately.
+     * If a run is already active for {@code sessionId} the new submission is
+     * rejected and the method returns {@code false}; otherwise it returns
+     * {@code true} and the run is dispatched.
      *
      * @param sessionId the SSE channel identifier used for all emitted events
      * @param request   the fully-formed LLM request
+     * @return {@code true} if the run was accepted, {@code false} if rejected
      */
-    public void runAsync(String sessionId, LLMRequest request) {
-        executor.submit(() -> runBlocking(sessionId, request));
+    public boolean runAsync(String sessionId, LLMRequest request) {
+        if (!activeSessions.add(sessionId)) {
+            log.warn("Session {} already has an active run — rejecting duplicate submission", sessionId);
+            return false;
+        }
+        executor.submit(() -> {
+            try {
+                runBlocking(sessionId, request);
+            } finally {
+                activeSessions.remove(sessionId);
+            }
+        });
+        return true;
     }
 
     // ── internal blocking run ─────────────────────────────────────────────────

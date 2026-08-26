@@ -21,6 +21,8 @@ import com.loom.engine.AgentRunner;
 import com.loom.llm.LLMRequest;
 import io.javalin.router.JavalinDefaultRoutingApi;
 
+import java.util.Map;
+
 public class SessionRoutes {
     private static final String NOT_IMPLEMENTED = "{\"status\":\"not_implemented\"}";
 
@@ -45,8 +47,12 @@ public class SessionRoutes {
             LLMRequest request = LLMRequest.builder()
                     .userPrompt(userPrompt)
                     .build();
-            agentRunner.runAsync(sessionId, request);
-            ctx.status(202).result("{\"status\":\"started\",\"sessionId\":\"" + sessionId + "\"}");
+            boolean accepted = agentRunner.runAsync(sessionId, request);
+            if (accepted) {
+                ctx.status(202).json(Map.of("status", "started", "sessionId", sessionId));
+            } else {
+                ctx.status(409).json(Map.of("status", "conflict", "sessionId", sessionId));
+            }
         });
     }
 }

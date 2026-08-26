@@ -50,7 +50,10 @@ class LocalServerBVT {
             port = s.getLocalPort();
         }
         sseManager = new SSEManager();
-        server = new LocalServer(sseManager);
+        server = new LocalServer(sseManager, new com.loom.engine.AgentRunner(
+                new com.loom.llm.MockLLMProvider(),
+                new com.loom.mcp.MCPClient(),
+                sseManager));
         server.start(port);
     }
 

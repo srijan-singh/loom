@@ -17,15 +17,42 @@
 
 package com.loom.transport.routes;
 
+import com.loom.engine.AgentRunner;
+import com.loom.llm.LLMRequest;
 import io.javalin.router.JavalinDefaultRoutingApi;
+
+import java.util.Map;
 
 public class SessionRoutes {
     private static final String NOT_IMPLEMENTED = "{\"status\":\"not_implemented\"}";
+
+    private final AgentRunner agentRunner;
+
+    public SessionRoutes(AgentRunner agentRunner) {
+        this.agentRunner = agentRunner;
+    }
 
     public void register(JavalinDefaultRoutingApi router) {
         router.get("/sessions", ctx -> ctx.result(NOT_IMPLEMENTED));
         router.post("/sessions", ctx -> ctx.result(NOT_IMPLEMENTED));
         router.get("/sessions/{id}", ctx -> ctx.result(NOT_IMPLEMENTED));
         router.delete("/sessions/{id}", ctx -> ctx.result(NOT_IMPLEMENTED));
+
+        router.post("/sessions/{id}/run", ctx -> {
+            String sessionId = ctx.pathParam("id");
+            String userPrompt = ctx.queryParam("prompt");
+            if (userPrompt == null || userPrompt.isBlank()) {
+                userPrompt = ctx.body().isBlank() ? "Hello" : ctx.body();
+            }
+            LLMRequest request = LLMRequest.builder()
+                    .userPrompt(userPrompt)
+                    .build();
+            boolean accepted = agentRunner.runAsync(sessionId, request);
+            if (accepted) {
+                ctx.status(202).json(Map.of("status", "started", "sessionId", sessionId));
+            } else {
+                ctx.status(409).json(Map.of("status", "conflict", "sessionId", sessionId));
+            }
+        });
     }
 }

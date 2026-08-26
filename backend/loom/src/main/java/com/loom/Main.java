@@ -18,8 +18,12 @@
 package com.loom;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loom.engine.AgentRunner;
 import com.loom.event.EventType;
 import com.loom.event.WorkflowEvent;
+import com.loom.llm.LLMGateway;
+import com.loom.llm.LLMProviderFactory;
+import com.loom.mcp.MCPClient;
 import com.loom.transport.LocalServer;
 import com.loom.transport.SSEManager;
 import lombok.extern.slf4j.Slf4j;
@@ -32,8 +36,12 @@ public class Main {
         String portEnv = System.getenv("LOOM_PORT");
         int port = (portEnv != null && !portEnv.isBlank()) ? Integer.parseInt(portEnv) : 7070;
 
-        SSEManager sseManager = new SSEManager();
-        LocalServer localServer = new LocalServer(sseManager);
+        SSEManager  sseManager  = new SSEManager();
+        LLMGateway  llmGateway  = LLMProviderFactory.create();
+        MCPClient   mcpClient   = new MCPClient();
+        AgentRunner agentRunner = new AgentRunner(llmGateway, mcpClient, sseManager);
+
+        LocalServer localServer = new LocalServer(sseManager, agentRunner);
 
         localServer.start(port);
         System.out.println("Loom engine listening on port " + port);

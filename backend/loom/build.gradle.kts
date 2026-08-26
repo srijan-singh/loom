@@ -32,6 +32,9 @@ dependencies {
     // SQLite
     implementation("org.xerial:sqlite-jdbc:$sqliteJdbcVersion")
 
+    // HTTP client for LLM providers
+    implementation("com.squareup.okhttp3:okhttp:$okhttpVersion")
+
     // Lombok dependency configuration
     compileOnly("org.projectlombok:lombok:$lombokVersion")
     annotationProcessor("org.projectlombok:lombok:$lombokVersion")
@@ -48,7 +51,7 @@ dependencies {
     testImplementation("org.mockito:mockito-core:$mockitoVersion")
     testImplementation("org.mockito:mockito-junit-jupiter:$mockitoVersion")
     testImplementation("io.javalin:javalin-testtools:$javalinVersion")
-    testImplementation("com.squareup.okhttp3:okhttp:$okhttpVersion")
+    testImplementation("com.squareup.okhttp3:mockwebserver:$okhttpVersion")
     testImplementation("org.assertj:assertj-core:$assertjVersion")
 
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

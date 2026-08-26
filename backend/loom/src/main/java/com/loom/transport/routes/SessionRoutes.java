@@ -17,15 +17,36 @@
 
 package com.loom.transport.routes;
 
+import com.loom.engine.AgentRunner;
+import com.loom.llm.LLMRequest;
 import io.javalin.router.JavalinDefaultRoutingApi;
 
 public class SessionRoutes {
     private static final String NOT_IMPLEMENTED = "{\"status\":\"not_implemented\"}";
+
+    private final AgentRunner agentRunner;
+
+    public SessionRoutes(AgentRunner agentRunner) {
+        this.agentRunner = agentRunner;
+    }
 
     public void register(JavalinDefaultRoutingApi router) {
         router.get("/sessions", ctx -> ctx.result(NOT_IMPLEMENTED));
         router.post("/sessions", ctx -> ctx.result(NOT_IMPLEMENTED));
         router.get("/sessions/{id}", ctx -> ctx.result(NOT_IMPLEMENTED));
         router.delete("/sessions/{id}", ctx -> ctx.result(NOT_IMPLEMENTED));
+
+        router.post("/sessions/{id}/run", ctx -> {
+            String sessionId = ctx.pathParam("id");
+            String userPrompt = ctx.queryParam("prompt");
+            if (userPrompt == null || userPrompt.isBlank()) {
+                userPrompt = ctx.body().isBlank() ? "Hello" : ctx.body();
+            }
+            LLMRequest request = LLMRequest.builder()
+                    .userPrompt(userPrompt)
+                    .build();
+            agentRunner.runAsync(sessionId, request);
+            ctx.status(202).result("{\"status\":\"started\",\"sessionId\":\"" + sessionId + "\"}");
+        });
     }
 }

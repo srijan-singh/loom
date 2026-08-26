@@ -17,6 +17,7 @@
 
 package com.loom.transport;
 
+import com.loom.engine.AgentRunner;
 import com.loom.transport.routes.*;
 import io.javalin.Javalin;
 import lombok.extern.slf4j.Slf4j;
@@ -27,10 +28,12 @@ public class LocalServer {
     private static final String EVENTS_ENDPOINT = "/events";
 
     private final SSEManager sseManager;
+    private final AgentRunner agentRunner;
     private Javalin app;
 
-    public LocalServer(SSEManager sseManager) {
-        this.sseManager = sseManager;
+    public LocalServer(SSEManager sseManager, AgentRunner agentRunner) {
+        this.sseManager   = sseManager;
+        this.agentRunner  = agentRunner;
     }
 
     public void start(int port) {
@@ -38,7 +41,7 @@ public class LocalServer {
         WorkflowRoutes workflowRoutes = new WorkflowRoutes();
         SkillRoutes skillRoutes = new SkillRoutes();
         MCPRoutes mcpRoutes = new MCPRoutes();
-        SessionRoutes sessionRoutes = new SessionRoutes();
+        SessionRoutes sessionRoutes = new SessionRoutes(agentRunner);
         WorkspaceRoutes workspaceRoutes = new WorkspaceRoutes();
 
         app = Javalin.create(config -> {

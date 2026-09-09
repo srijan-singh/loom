@@ -17,14 +17,79 @@
 
 package com.loom.transport.routes;
 
+import com.loom.domain.AgentDefinition;
+import com.loom.storage.repository.AgentRepository;
 import io.javalin.router.JavalinDefaultRoutingApi;
 
+import java.util.Optional;
+
 public class AgentRoutes {
-    private static final String NOT_IMPLEMENTED = "{\"status\":\"not_implemented\"}";
+
+    private final AgentRepository agentRepository;
+
+    public AgentRoutes(AgentRepository agentRepository) {
+        this.agentRepository = agentRepository;
+    }
 
     public void register(JavalinDefaultRoutingApi router) {
-        router.get("/agents", ctx -> ctx.result(NOT_IMPLEMENTED));
-        router.post("/agents", ctx -> ctx.result(NOT_IMPLEMENTED));
-        router.get("/agents/{id}", ctx -> ctx.result(NOT_IMPLEMENTED));
+
+        router.get("/agents", ctx -> ctx.json(agentRepository.findAll()));
+
+        router.get("/agents/{id}", ctx -> {
+            String id = ctx.pathParam("id");
+            Optional<AgentDefinition> found = agentRepository.findById(id);
+            if (found.isEmpty()) {
+                ctx.status(404).json(RouteHelper.notFound());
+            } else {
+                ctx.json(found.get());
+            }
+        });
+
+        router.post("/agents", ctx -> {
+            AgentDefinition body = ctx.bodyAsClass(AgentDefinition.class);
+            if (body.getName() == null || body.getName().isBlank()) {
+                ctx.status(400).json(RouteHelper.error("name is required"));
+                return;
+            }
+            long now = System.currentTimeMillis();
+            AgentDefinition created = new AgentDefinition();
+            created.setName(body.getName());
+            created.setRoleDescription(body.getRoleDescription());
+            created.setSkillId(body.getSkillId());
+            created.setAllowedMcpIds(body.getAllowedMcpIds());
+            created.setCreatedAt(now);
+            created.setUpdatedAt(now);
+            agentRepository.save(created);
+            ctx.status(201).json(created);
+        });
+
+        router.put("/agents/{id}", ctx -> {
+            String id = ctx.pathParam("id");
+            Optional<AgentDefinition> existing = agentRepository.findById(id);
+            if (existing.isEmpty()) {
+                ctx.status(404).json(RouteHelper.notFound());
+                return;
+            }
+            AgentDefinition body = ctx.bodyAsClass(AgentDefinition.class);
+            if (body.getName() == null || body.getName().isBlank()) {
+                ctx.status(400).json(RouteHelper.error("name is required"));
+                return;
+            }
+            body.setId(id);
+            body.setCreatedAt(existing.get().getCreatedAt());
+            body.setUpdatedAt(System.currentTimeMillis());
+            agentRepository.save(body);
+            ctx.json(agentRepository.findById(id).get());
+        });
+
+        router.delete("/agents/{id}", ctx -> {
+            String id = ctx.pathParam("id");
+            if (agentRepository.findById(id).isEmpty()) {
+                ctx.status(404).json(RouteHelper.notFound());
+                return;
+            }
+            agentRepository.delete(id);
+            ctx.status(204);
+        });
     }
 }

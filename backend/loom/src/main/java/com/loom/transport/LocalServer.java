@@ -17,7 +17,8 @@
 
 package com.loom.transport;
 
-import com.loom.engine.AgentRunner;
+import com.loom.engine.AgentRuntime;
+import com.loom.storage.repository.*;
 import com.loom.transport.routes.*;
 import io.javalin.Javalin;
 import lombok.extern.slf4j.Slf4j;
@@ -27,21 +28,40 @@ public class LocalServer {
 
     private static final String EVENTS_ENDPOINT = "/events";
 
-    private final SSEManager sseManager;
-    private final AgentRunner agentRunner;
+    private final SSEManager             sseManager;
+    private final AgentRuntime           agentRuntime;
+    private final AgentRepository        agentRepository;
+    private final SkillRepository        skillRepository;
+    private final MCPConnectionRepository mcpRepository;
+    private final SessionRepository      sessionRepository;
+    private final WorkflowRepository     workflowRepository;
+    private final WorkspaceRepository    workspaceRepository;
     private Javalin app;
 
-    public LocalServer(SSEManager sseManager, AgentRunner agentRunner) {
-        this.sseManager   = sseManager;
-        this.agentRunner  = agentRunner;
+    public LocalServer(SSEManager sseManager,
+                       AgentRuntime agentRuntime,
+                       AgentRepository agentRepository,
+                       SkillRepository skillRepository,
+                       MCPConnectionRepository mcpRepository,
+                       SessionRepository sessionRepository,
+                       WorkflowRepository workflowRepository,
+                       WorkspaceRepository workspaceRepository) {
+        this.sseManager         = sseManager;
+        this.agentRuntime       = agentRuntime;
+        this.agentRepository    = agentRepository;
+        this.skillRepository    = skillRepository;
+        this.mcpRepository      = mcpRepository;
+        this.sessionRepository  = sessionRepository;
+        this.workflowRepository = workflowRepository;
+        this.workspaceRepository = workspaceRepository;
     }
 
     public void start(int port) {
-        AgentRoutes agentRoutes = new AgentRoutes();
+        AgentRoutes    agentRoutes    = new AgentRoutes(agentRepository);
         WorkflowRoutes workflowRoutes = new WorkflowRoutes();
-        SkillRoutes skillRoutes = new SkillRoutes();
-        MCPRoutes mcpRoutes = new MCPRoutes();
-        SessionRoutes sessionRoutes = new SessionRoutes(agentRunner);
+        SkillRoutes    skillRoutes    = new SkillRoutes(skillRepository);
+        MCPRoutes      mcpRoutes      = new MCPRoutes(mcpRepository);
+        SessionRoutes  sessionRoutes  = new SessionRoutes(sessionRepository, agentRuntime);
         WorkspaceRoutes workspaceRoutes = new WorkspaceRoutes();
 
         app = Javalin.create(config -> {

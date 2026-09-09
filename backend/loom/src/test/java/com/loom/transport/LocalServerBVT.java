@@ -19,13 +19,20 @@ package com.loom.transport;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loom.engine.AgentRuntime;
 import com.loom.event.EventType;
 import com.loom.event.WorkflowEvent;
+import com.loom.llm.MockLLMProvider;
+import com.loom.mcp.MCPClient;
+import com.loom.storage.DatabaseManager;
+import com.loom.storage.repository.*;
 import com.loom.transport.util.TestSSEClient;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -43,23 +50,43 @@ class LocalServerBVT {
     private static int port;
     private static LocalServer server;
     private static SSEManager sseManager;
+    private static Path dbFile;
 
     @BeforeAll
     static void startServer() throws IOException {
         try (ServerSocket s = new ServerSocket(0)) {
             port = s.getLocalPort();
         }
+        dbFile = Files.createTempFile("loom-bvt-server-", ".db");
+        dbFile.toFile().deleteOnExit();
+
+        DatabaseManager db = new DatabaseManager(dbFile.toAbsolutePath().toString());
+        SkillRepository              skillRepo     = new SkillRepository(db);
+        MCPConnectionRepository      mcpRepo       = new MCPConnectionRepository(db);
+        AgentRepository              agentRepo     = new AgentRepository(db);
+        WorkflowRepository           workflowRepo  = new WorkflowRepository(db);
+        WorkspaceRepository          workspaceRepo = new WorkspaceRepository(db);
+        SessionRepository            sessionRepo   = new SessionRepository(db);
+        AgentExecutionRepository     execRepo      = new AgentExecutionRepository(db);
+        WorkspaceKnowledgeRepository knowledgeRepo = new WorkspaceKnowledgeRepository(db);
+
         sseManager = new SSEManager();
-        server = new LocalServer(sseManager, new com.loom.engine.AgentRunner(
-                new com.loom.llm.MockLLMProvider(),
-                new com.loom.mcp.MCPClient(),
-                sseManager));
+        MCPClient mcpClient = new MCPClient();
+        AgentRuntime agentRuntime = new AgentRuntime(
+                new MockLLMProvider(), mcpClient, sseManager,
+                skillRepo, knowledgeRepo, execRepo,
+                sessionRepo, workflowRepo, agentRepo);
+
+        server = new LocalServer(sseManager, agentRuntime,
+                agentRepo, skillRepo, mcpRepo,
+                sessionRepo, workflowRepo, workspaceRepo);
         server.start(port);
     }
 
     @AfterAll
-    static void stopServer() {
+    static void stopServer() throws IOException {
         if (server != null) server.stop();
+        if (dbFile != null) Files.deleteIfExists(dbFile);
     }
 
     @Test

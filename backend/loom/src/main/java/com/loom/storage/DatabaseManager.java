@@ -61,8 +61,8 @@ public class DatabaseManager {
         initSchema();
     }
 
-    /** Package-private constructor for tests — accepts an explicit file path. */
-    DatabaseManager(String dbPath) {
+    /** Test constructor — accepts an explicit file path (e.g. a temp file). */
+    public DatabaseManager(String dbPath) {
         this.jdbcUrl = "jdbc:sqlite:" + dbPath;
         initSchema();
     }

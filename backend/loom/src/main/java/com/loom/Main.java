@@ -17,18 +17,15 @@
 
 package com.loom;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.loom.engine.AgentRunner;
-import com.loom.event.EventType;
-import com.loom.event.WorkflowEvent;
+import com.loom.engine.AgentRuntime;
 import com.loom.llm.LLMGateway;
 import com.loom.llm.LLMProviderFactory;
 import com.loom.mcp.MCPClient;
+import com.loom.storage.DatabaseManager;
+import com.loom.storage.repository.*;
 import com.loom.transport.LocalServer;
 import com.loom.transport.SSEManager;
 import lombok.extern.slf4j.Slf4j;
-
-import java.util.Map;
 
 @Slf4j
 public class Main {
@@ -36,31 +33,35 @@ public class Main {
         String portEnv = System.getenv("LOOM_PORT");
         int port = (portEnv != null && !portEnv.isBlank()) ? Integer.parseInt(portEnv) : 7070;
 
+        // Storage
+        DatabaseManager db = new DatabaseManager();
+
+        SkillRepository                skillRepo     = new SkillRepository(db);
+        MCPConnectionRepository        mcpRepo       = new MCPConnectionRepository(db);
+        AgentRepository                agentRepo     = new AgentRepository(db);
+        WorkflowRepository             workflowRepo  = new WorkflowRepository(db);
+        WorkspaceRepository            workspaceRepo = new WorkspaceRepository(db);
+        SessionRepository              sessionRepo   = new SessionRepository(db);
+        AgentExecutionRepository       execRepo      = new AgentExecutionRepository(db);
+        WorkspaceKnowledgeRepository   knowledgeRepo = new WorkspaceKnowledgeRepository(db);
+
+        // Engine
         SSEManager  sseManager  = new SSEManager();
         LLMGateway  llmGateway  = LLMProviderFactory.create();
         MCPClient   mcpClient   = new MCPClient();
-        AgentRunner agentRunner = new AgentRunner(llmGateway, mcpClient, sseManager);
 
-        LocalServer localServer = new LocalServer(sseManager, agentRunner);
+        AgentRuntime agentRuntime = new AgentRuntime(
+                llmGateway, mcpClient, sseManager,
+                skillRepo, knowledgeRepo, execRepo,
+                sessionRepo, workflowRepo, agentRepo);
+
+        // Transport
+        LocalServer localServer = new LocalServer(
+                sseManager, agentRuntime,
+                agentRepo, skillRepo, mcpRepo,
+                sessionRepo, workflowRepo, workspaceRepo);
 
         localServer.start(port);
         System.out.println("Loom engine listening on port " + port);
-
-        ObjectMapper mapper = new ObjectMapper();
-        new Thread(() -> {
-            try {
-                Thread.sleep(2000);
-                WorkflowEvent testflowEvent = WorkflowEvent.builder()
-                        .eventType(EventType.SESSION_STARTED)
-                        .sessionId("test-123")
-                        .data(mapper.valueToTree(Map.of("message", "Hello World!")))
-                        .build();
-
-                sseManager.broadcast(testflowEvent);
-                log.info("test event broadcasted");
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }).start();
     }
 }

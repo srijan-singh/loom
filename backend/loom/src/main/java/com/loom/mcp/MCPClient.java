@@ -17,8 +17,11 @@
 
 package com.loom.mcp;
 
+import com.loom.llm.MCPToolDefinition;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -30,6 +33,18 @@ import java.util.Map;
  */
 @Slf4j
 public class MCPClient {
+
+    /**
+     * Returns the list of tools available on the given MCP connection.
+     * Stub implementation — real discovery comes in a later issue.
+     *
+     * @param mcpConnectionId the MCP connection id
+     * @return empty list (no tools available in stub mode)
+     */
+    public List<MCPToolDefinition> listTools(String mcpConnectionId) {
+        log.debug("MCPClient.listTools (stub): mcpConnectionId='{}'", mcpConnectionId);
+        return Collections.emptyList();
+    }
 
     /**
      * Executes a tool call and returns a plain-text result.

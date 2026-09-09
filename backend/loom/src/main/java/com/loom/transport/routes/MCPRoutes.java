@@ -17,14 +17,54 @@
 
 package com.loom.transport.routes;
 
+import com.loom.domain.MCPConnection;
+import com.loom.domain.MCPStatus;
+import com.loom.storage.repository.MCPConnectionRepository;
 import io.javalin.router.JavalinDefaultRoutingApi;
 
+import java.util.Optional;
+
 public class MCPRoutes {
-    private static final String NOT_IMPLEMENTED = "{\"status\":\"not_implemented\"}";
+
+    private final MCPConnectionRepository mcpRepository;
+
+    public MCPRoutes(MCPConnectionRepository mcpRepository) {
+        this.mcpRepository = mcpRepository;
+    }
 
     public void register(JavalinDefaultRoutingApi router) {
-        router.get("/mcp", ctx -> ctx.result(NOT_IMPLEMENTED));
-        router.post("/mcp", ctx -> ctx.result(NOT_IMPLEMENTED));
-        router.get("/mcp/{id}", ctx -> ctx.result(NOT_IMPLEMENTED));
+
+        router.get("/mcps", ctx -> ctx.json(mcpRepository.findAll()));
+
+        router.post("/mcps", ctx -> {
+            MCPConnection body = ctx.bodyAsClass(MCPConnection.class);
+            if (body.getName() == null || body.getName().isBlank()) {
+                ctx.status(400).json(RouteHelper.error("name is required"));
+                return;
+            }
+            if (body.getType() == null || body.getType().isBlank()) {
+                ctx.status(400).json(RouteHelper.error("type is required"));
+                return;
+            }
+            MCPConnection created = new MCPConnection();
+            created.setName(body.getName());
+            created.setType(body.getType());
+            created.setConfig(body.getConfig());
+            created.setStatus(body.getStatus() != null ? body.getStatus() : MCPStatus.DISCONNECTED);
+            created.setCreatedAt(System.currentTimeMillis());
+            mcpRepository.save(created);
+            ctx.status(201).json(created);
+        });
+
+        router.delete("/mcps/{id}", ctx -> {
+            String id = ctx.pathParam("id");
+            Optional<MCPConnection> found = mcpRepository.findById(id);
+            if (found.isEmpty()) {
+                ctx.status(404).json(RouteHelper.notFound());
+                return;
+            }
+            mcpRepository.delete(id);
+            ctx.status(204);
+        });
     }
 }

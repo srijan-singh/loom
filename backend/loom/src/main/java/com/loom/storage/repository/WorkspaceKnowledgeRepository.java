@@ -22,6 +22,7 @@ import com.loom.storage.DatabaseManager;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 
 public class WorkspaceKnowledgeRepository extends BaseRepository<WorkspaceKnowledge> {
 
@@ -50,6 +51,13 @@ public class WorkspaceKnowledgeRepository extends BaseRepository<WorkspaceKnowle
     public WorkspaceKnowledgeRepository(DatabaseManager db) {
         super(db, TABLE);
         setMapper(this::map);
+    }
+
+    public List<WorkspaceKnowledge> findByWorkspaceId(String workspaceId) {
+        return db().queryList(
+                "SELECT * FROM " + TABLE + " WHERE workspace_id = ?",
+                ps -> ps.setString(1, workspaceId),
+                this::map);
     }
 
     public void save(WorkspaceKnowledge knowledge) {

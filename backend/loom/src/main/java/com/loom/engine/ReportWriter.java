@@ -56,6 +56,9 @@ public class ReportWriter {
                                    String agentName,
                                    String workspaceId,
                                    String output) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            throw new IllegalArgumentException("workspaceId is required to persist WorkspaceKnowledge");
+        }
         String title = agentName + " — " + TITLE_FMT.format(Instant.ofEpochMilli(
                 execution.getCompletedAt() != null
                         ? execution.getCompletedAt()

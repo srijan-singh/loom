@@ -22,7 +22,9 @@ import com.loom.domain.MCPStatus;
 import com.loom.storage.repository.MCPConnectionRepository;
 import io.javalin.router.JavalinDefaultRoutingApi;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class MCPRoutes {
 
@@ -34,7 +36,12 @@ public class MCPRoutes {
 
     public void register(JavalinDefaultRoutingApi router) {
 
-        router.get("/mcps", ctx -> ctx.json(mcpRepository.findAll()));
+        router.get("/mcps", ctx -> {
+            List<MCPConnectionView> views = mcpRepository.findAll().stream()
+                    .map(MCPConnectionView::of)
+                    .collect(Collectors.toList());
+            ctx.json(views);
+        });
 
         router.post("/mcps", ctx -> {
             MCPConnection body = ctx.bodyAsClass(MCPConnection.class);
@@ -53,7 +60,7 @@ public class MCPRoutes {
             created.setStatus(body.getStatus() != null ? body.getStatus() : MCPStatus.DISCONNECTED);
             created.setCreatedAt(System.currentTimeMillis());
             mcpRepository.save(created);
-            ctx.status(201).json(created);
+            ctx.status(201).json(MCPConnectionView.of(created));
         });
 
         router.delete("/mcps/{id}", ctx -> {
@@ -66,5 +73,26 @@ public class MCPRoutes {
             mcpRepository.delete(id);
             ctx.status(204);
         });
+    }
+
+    /** Public projection of {@link MCPConnection} that omits the sensitive {@code config} field. */
+    public static final class MCPConnectionView {
+        public final String id;
+        public final String name;
+        public final String type;
+        public final MCPStatus status;
+        public final long createdAt;
+
+        private MCPConnectionView(MCPConnection c) {
+            this.id        = c.getId();
+            this.name      = c.getName();
+            this.type      = c.getType();
+            this.status    = c.getStatus();
+            this.createdAt = c.getCreatedAt();
+        }
+
+        public static MCPConnectionView of(MCPConnection c) {
+            return new MCPConnectionView(c);
+        }
     }
 }

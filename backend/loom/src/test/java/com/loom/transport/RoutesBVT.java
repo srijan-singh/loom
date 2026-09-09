@@ -303,7 +303,7 @@ class RoutesBVT {
         boolean completed = false;
         while (System.currentTimeMillis() < deadline) {
             String msg = sse.waitForMessage(1);
-            if (msg == null) break;
+            if (msg == null) continue;
             events.add(msg);
             JsonNode node = MAPPER.readTree(msg);
             if ("SESSION_COMPLETED".equals(node.path("eventType").asText())) {

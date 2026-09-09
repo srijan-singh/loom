@@ -30,6 +30,7 @@ import com.loom.transport.SSEManager;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -172,10 +173,9 @@ public class AgentRuntime {
             }
 
             // 3. Fetch workspace knowledge
-            List<WorkspaceKnowledge> knowledge = knowledgeRepository.findAll().stream()
-                    .filter(k -> session.getWorkspaceId() != null
-                            && session.getWorkspaceId().equals(k.getWorkspaceId()))
-                    .collect(java.util.stream.Collectors.toList());
+            List<WorkspaceKnowledge> knowledge = session.getWorkspaceId() != null
+                    ? knowledgeRepository.findByWorkspaceId(session.getWorkspaceId())
+                    : Collections.emptyList();
 
             // 4. Build LLM request
             LLMRequest request = contextBuilder.build(agent, session, skillContent, inputContext, knowledge);
@@ -198,7 +198,9 @@ public class AgentRuntime {
 
                     case LLMResponse.TOOL_CALL: {
                         String toolName = response.getToolName();
-                        Map<String, Object> toolInput = response.getToolInput();
+                        Map<String, Object> toolInput = response.getToolInput() != null
+                                ? response.getToolInput()
+                                : Collections.emptyMap();
                         broadcast(session.getId(), EventType.AGENT_TOOL_CALL,
                                 Map.of("toolName", toolName, "toolInput", toolInput));
                         String toolResult = mcpClient.execute(toolName, toolInput);
@@ -304,11 +306,10 @@ public class AgentRuntime {
             history.add(new com.loom.llm.LLMMessage("user", prev.getUserPrompt()));
         }
         history.add(new com.loom.llm.LLMMessage("assistant", "[Called tool: " + toolName + "]"));
-        history.add(new com.loom.llm.LLMMessage("user", "Tool result for " + toolName + ": " + toolResult));
         return LLMRequest.builder()
                 .model(prev.getModel())
                 .systemPrompt(prev.getSystemPrompt())
-                .userPrompt(prev.getUserPrompt())
+                .userPrompt("Tool result for " + toolName + ": " + toolResult)
                 .history(history)
                 .tools(prev.getTools())
                 .maxTokens(prev.getMaxTokens())

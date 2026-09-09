@@ -65,7 +65,8 @@ public class AgentRoutes {
 
         router.put("/agents/{id}", ctx -> {
             String id = ctx.pathParam("id");
-            if (agentRepository.findById(id).isEmpty()) {
+            Optional<AgentDefinition> existing = agentRepository.findById(id);
+            if (existing.isEmpty()) {
                 ctx.status(404).json(RouteHelper.notFound());
                 return;
             }
@@ -75,6 +76,7 @@ public class AgentRoutes {
                 return;
             }
             body.setId(id);
+            body.setCreatedAt(existing.get().getCreatedAt());
             body.setUpdatedAt(System.currentTimeMillis());
             agentRepository.save(body);
             ctx.json(agentRepository.findById(id).get());

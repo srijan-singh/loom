@@ -65,7 +65,8 @@ public class SkillRoutes {
 
         router.put("/skills/{id}", ctx -> {
             String id = ctx.pathParam("id");
-            if (skillRepository.findById(id).isEmpty()) {
+            Optional<Skill> existing = skillRepository.findById(id);
+            if (existing.isEmpty()) {
                 ctx.status(404).json(RouteHelper.notFound());
                 return;
             }
@@ -75,6 +76,7 @@ public class SkillRoutes {
                 return;
             }
             body.setId(id);
+            body.setCreatedAt(existing.get().getCreatedAt());
             body.setUpdatedAt(System.currentTimeMillis());
             skillRepository.save(body);
             ctx.json(skillRepository.findById(id).get());

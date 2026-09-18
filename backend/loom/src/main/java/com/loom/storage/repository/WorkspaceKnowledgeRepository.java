@@ -14,12 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.storage.repository;
 
 import com.loom.domain.WorkspaceKnowledge;
 import com.loom.storage.DatabaseManager;
-
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -37,16 +35,16 @@ public class WorkspaceKnowledgeRepository extends BaseRepository<WorkspaceKnowle
     // queries
     private static final String TABLE = "workspace_knowledge";
 
-    private static final String SAVE = upsert(
-            TABLE,
-            COL_ID,
-            COL_WORKSPACE_ID,
-            COL_SOURCE_EXECUTION_ID,
-            COL_TITLE,
-            COL_CONTENT,
-            COL_TAGS,
-            COL_CREATED_AT
-    );
+    private static final String SAVE =
+            upsert(
+                    TABLE,
+                    COL_ID,
+                    COL_WORKSPACE_ID,
+                    COL_SOURCE_EXECUTION_ID,
+                    COL_TITLE,
+                    COL_CONTENT,
+                    COL_TAGS,
+                    COL_CREATED_AT);
 
     public WorkspaceKnowledgeRepository(DatabaseManager db) {
         super(db, TABLE);
@@ -55,21 +53,23 @@ public class WorkspaceKnowledgeRepository extends BaseRepository<WorkspaceKnowle
 
     public List<WorkspaceKnowledge> findByWorkspaceId(String workspaceId) {
         return db().queryList(
-                "SELECT * FROM " + TABLE + " WHERE workspace_id = ?",
-                ps -> ps.setString(1, workspaceId),
-                this::map);
+                        "SELECT * FROM " + TABLE + " WHERE workspace_id = ?",
+                        ps -> ps.setString(1, workspaceId),
+                        this::map);
     }
 
     public void save(WorkspaceKnowledge knowledge) {
-        db().update(SAVE, ps -> {
-            ps.setString(1, knowledge.getId());
-            ps.setString(2, knowledge.getWorkspaceId());
-            ps.setString(3, knowledge.getSourceExecutionId());
-            ps.setString(4, knowledge.getTitle());
-            ps.setString(5, knowledge.getContent());
-            ps.setString(6, toJsonList(knowledge.getTags()));
-            ps.setLong(7, knowledge.getCreatedAt());
-        });
+        db().update(
+                        SAVE,
+                        ps -> {
+                            ps.setString(1, knowledge.getId());
+                            ps.setString(2, knowledge.getWorkspaceId());
+                            ps.setString(3, knowledge.getSourceExecutionId());
+                            ps.setString(4, knowledge.getTitle());
+                            ps.setString(5, knowledge.getContent());
+                            ps.setString(6, toJsonList(knowledge.getTags()));
+                            ps.setLong(7, knowledge.getCreatedAt());
+                        });
     }
 
     private WorkspaceKnowledge map(ResultSet rs) throws SQLException {
@@ -83,5 +83,4 @@ public class WorkspaceKnowledgeRepository extends BaseRepository<WorkspaceKnowle
         k.setCreatedAt(rs.getLong(COL_CREATED_AT));
         return k;
     }
-
 }

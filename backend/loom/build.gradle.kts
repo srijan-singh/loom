@@ -1,6 +1,7 @@
 plugins {
     id("java")
     id("com.gradleup.shadow") version "9.0.0-beta4"
+    id("com.diffplug.spotless") version "7.0.4"
 }
 
 group = "com.loom"
@@ -55,6 +56,49 @@ dependencies {
     testImplementation("org.assertj:assertj-core:$assertjVersion")
 
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+// ── Spotless: formatting + licence enforcement ─────────────────────────────
+
+val licenseHeader = """
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+""".trimIndent()
+
+spotless {
+    java {
+        // Enforce the Apache licence header on every .java file
+        licenseHeader(licenseHeader)
+
+        // Google Java Format keeps indentation at 2 spaces per its spec,
+        // which is the de-facto standard formatter for Java at Google scale.
+        // Use AOSP style (4-space indent) to match the project's existing code.
+        googleJavaFormat("1.25.2").aosp().reflowLongStrings(false)
+
+        // Trim trailing whitespace and ensure a single newline at EOF
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+}
+
+// spotlessCheck runs as part of the standard `check` lifecycle so the build
+// breaks automatically on any formatting or licence violation.
+tasks.named("check") {
+    dependsOn("spotlessCheck")
 }
 
 tasks.test {

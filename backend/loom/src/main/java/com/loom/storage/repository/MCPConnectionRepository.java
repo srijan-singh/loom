@@ -14,13 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.storage.repository;
 
 import com.loom.domain.MCPConnection;
 import com.loom.domain.MCPStatus;
 import com.loom.storage.DatabaseManager;
-
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
@@ -36,15 +34,8 @@ public class MCPConnectionRepository extends BaseRepository<MCPConnection> {
     // queries
     private static final String TABLE = "mcp_connections";
 
-    private static final String SAVE  = upsert(
-            TABLE,
-            COL_ID,
-            COL_NAME,
-            COL_TYPE,
-            COL_CONFIG,
-            COL_STATUS,
-            COL_CREATED_AT
-    );
+    private static final String SAVE =
+            upsert(TABLE, COL_ID, COL_NAME, COL_TYPE, COL_CONFIG, COL_STATUS, COL_CREATED_AT);
 
     public MCPConnectionRepository(DatabaseManager db) {
         super(db, TABLE);
@@ -52,14 +43,17 @@ public class MCPConnectionRepository extends BaseRepository<MCPConnection> {
     }
 
     public void save(MCPConnection conn) {
-        db().update(SAVE, ps -> {
-            ps.setString(1, conn.getId());
-            ps.setString(2, conn.getName());
-            ps.setString(3, conn.getType());
-            ps.setString(4, toJsonMap(conn.getConfig()));
-            ps.setString(5, conn.getStatus() != null ? conn.getStatus().name() : null);
-            ps.setLong(6, conn.getCreatedAt());
-        });
+        db().update(
+                        SAVE,
+                        ps -> {
+                            ps.setString(1, conn.getId());
+                            ps.setString(2, conn.getName());
+                            ps.setString(3, conn.getType());
+                            ps.setString(4, toJsonMap(conn.getConfig()));
+                            ps.setString(
+                                    5, conn.getStatus() != null ? conn.getStatus().name() : null);
+                            ps.setLong(6, conn.getCreatedAt());
+                        });
     }
 
     private MCPConnection map(ResultSet rs) throws SQLException {

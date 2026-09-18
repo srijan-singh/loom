@@ -14,21 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.transport.util;
-
-import okhttp3.*;
 
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import okhttp3.*;
 
 /**
- * Minimal SSE test client backed by OkHttp.
- * Uses a background thread with a synchronous call so we can signal
- * "connected" the moment the 200 header arrives.
+ * Minimal SSE test client backed by OkHttp. Uses a background thread with a synchronous call so we
+ * can signal "connected" the moment the 200 header arrives.
  */
 public class TestSSEClient {
 
@@ -42,11 +39,14 @@ public class TestSSEClient {
     private volatile boolean connected = false;
     private volatile Call call;
 
-    public boolean isConnected() { return connected; }
+    public boolean isConnected() {
+        return connected;
+    }
 
-    private static final OkHttpClient HTTP = new OkHttpClient.Builder()
-            .readTimeout(0, TimeUnit.MILLISECONDS)  // infinite — SSE is long-lived
-            .build();
+    private static final OkHttpClient HTTP =
+            new OkHttpClient.Builder()
+                    .readTimeout(0, TimeUnit.MILLISECONDS) // infinite — SSE is long-lived
+                    .build();
 
     public TestSSEClient(int clientId, int port) {
         this.clientId = clientId;
@@ -54,48 +54,58 @@ public class TestSSEClient {
     }
 
     /**
-     * Starts the SSE connection on a daemon thread and blocks until the
-     * server sends back a 200 (or 3 s elapses).
+     * Starts the SSE connection on a daemon thread and blocks until the server sends back a 200 (or
+     * 3 s elapses).
      */
     public void connect() throws InterruptedException {
-        Request request = new Request.Builder()
-                .url(url)
-                .header("Accept", "text/event-stream")
-                .header("Cache-Control", "no-cache")
-                .build();
+        Request request =
+                new Request.Builder()
+                        .url(url)
+                        .header("Accept", "text/event-stream")
+                        .header("Cache-Control", "no-cache")
+                        .build();
 
         call = HTTP.newCall(request);
 
-        Thread thread = new Thread(() -> {
-            try (Response response = call.execute()) {
-                if (!response.isSuccessful()) {
-                    System.err.println("Client " + clientId + " unexpected HTTP " + response.code());
-                    return;
-                }
-                // Headers received — signal connected
-                connected = true;
-                connectedLatch.countDown();
+        Thread thread =
+                new Thread(
+                        () -> {
+                            try (Response response = call.execute()) {
+                                if (!response.isSuccessful()) {
+                                    System.err.println(
+                                            "Client "
+                                                    + clientId
+                                                    + " unexpected HTTP "
+                                                    + response.code());
+                                    return;
+                                }
+                                // Headers received — signal connected
+                                connected = true;
+                                connectedLatch.countDown();
 
-                ResponseBody body = response.body();
-                if (body == null) return;
+                                ResponseBody body = response.body();
+                                if (body == null) return;
 
-                okio.BufferedSource source = body.source();
-                while (!call.isCanceled()) {
-                    String line = source.readUtf8Line();
-                    if (line == null) break;
-                    if (line.startsWith("data: ")) {
-                        messageQueue.offer(line.substring(6));
-                    }
-                }
-            } catch (IOException e) {
-                if (!call.isCanceled()) {
-                    System.err.println("Client " + clientId + " error: " + e.getMessage());
-                }
-            } finally {
-                connected = false;
-                connectedLatch.countDown(); // unblock connect() if we never got a 200
-            }
-        }, "sse-client-" + clientId);
+                                okio.BufferedSource source = body.source();
+                                while (!call.isCanceled()) {
+                                    String line = source.readUtf8Line();
+                                    if (line == null) break;
+                                    if (line.startsWith("data: ")) {
+                                        messageQueue.offer(line.substring(6));
+                                    }
+                                }
+                            } catch (IOException e) {
+                                if (!call.isCanceled()) {
+                                    System.err.println(
+                                            "Client " + clientId + " error: " + e.getMessage());
+                                }
+                            } finally {
+                                connected = false;
+                                connectedLatch
+                                        .countDown(); // unblock connect() if we never got a 200
+                            }
+                        },
+                        "sse-client-" + clientId);
 
         thread.setDaemon(true);
         thread.start();

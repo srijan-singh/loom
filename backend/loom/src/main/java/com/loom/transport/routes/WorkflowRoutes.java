@@ -14,17 +14,119 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.transport.routes;
 
+import com.loom.domain.WorkflowDefinition;
+import com.loom.engine.GraphResolver;
+import com.loom.engine.InvalidWorkflowException;
+import com.loom.storage.repository.WorkflowRepository;
 import io.javalin.router.JavalinDefaultRoutingApi;
+import java.util.Optional;
 
 public class WorkflowRoutes {
-    private static final String NOT_IMPLEMENTED = "{\"status\":\"not_implemented\"}";
+
+    private final WorkflowRepository workflowRepository;
+    private final GraphResolver graphResolver;
+
+    public WorkflowRoutes(WorkflowRepository workflowRepository, GraphResolver graphResolver) {
+        this.workflowRepository = workflowRepository;
+        this.graphResolver = graphResolver;
+    }
 
     public void register(JavalinDefaultRoutingApi router) {
-        router.get("/workflows", ctx -> ctx.result(NOT_IMPLEMENTED));
-        router.post("/workflows", ctx -> ctx.result(NOT_IMPLEMENTED));
-        router.get("/workflows/{id}", ctx -> ctx.result(NOT_IMPLEMENTED));
+
+        // GET /workflows — list all
+        router.get("/workflows", ctx -> ctx.json(workflowRepository.findAll()));
+
+        // POST /workflows — validate graph, save, return 201
+        router.post(
+                "/workflows",
+                ctx -> {
+                    WorkflowDefinition body = ctx.bodyAsClass(WorkflowDefinition.class);
+                    if (body.getName() == null || body.getName().isBlank()) {
+                        ctx.status(400).json(RouteHelper.error("name is required"));
+                        return;
+                    }
+                    if (body.getType() == null) {
+                        ctx.status(400).json(RouteHelper.error("type is required"));
+                        return;
+                    }
+                    try {
+                        graphResolver.resolve(body);
+                    } catch (InvalidWorkflowException e) {
+                        ctx.status(400).json(RouteHelper.error(e.getMessage()));
+                        return;
+                    }
+                    long now = System.currentTimeMillis();
+                    body.setCreatedAt(now);
+                    body.setUpdatedAt(now);
+                    workflowRepository.save(body);
+                    ctx.status(201).json(body);
+                });
+
+        // GET /workflows/{id} — find by id or 404
+        router.get(
+                "/workflows/{id}",
+                ctx -> {
+                    String id = ctx.pathParam("id");
+                    Optional<WorkflowDefinition> found = workflowRepository.findById(id);
+                    if (found.isEmpty()) {
+                        ctx.status(404).json(RouteHelper.notFound());
+                    } else {
+                        ctx.json(found.get());
+                    }
+                });
+
+        // PUT /workflows/{id} — validate graph, merge, save, return 200
+        router.put(
+                "/workflows/{id}",
+                ctx -> {
+                    String id = ctx.pathParam("id");
+                    Optional<WorkflowDefinition> existingOpt = workflowRepository.findById(id);
+                    if (existingOpt.isEmpty()) {
+                        ctx.status(404).json(RouteHelper.notFound());
+                        return;
+                    }
+                    WorkflowDefinition existing = existingOpt.get();
+                    WorkflowDefinition body = ctx.bodyAsClass(WorkflowDefinition.class);
+                    // merge non-null fields
+                    if (body.getName() != null && !body.getName().isBlank()) {
+                        existing.setName(body.getName());
+                    }
+                    if (body.getType() != null) {
+                        existing.setType(body.getType());
+                    }
+                    if (body.getNodes() != null) {
+                        existing.setNodes(body.getNodes());
+                    }
+                    if (body.getEdges() != null) {
+                        existing.setEdges(body.getEdges());
+                    }
+                    if (body.getCreatedBy() != null) {
+                        existing.setCreatedBy(body.getCreatedBy());
+                    }
+                    existing.setUpdatedAt(System.currentTimeMillis());
+                    try {
+                        graphResolver.resolve(existing);
+                    } catch (InvalidWorkflowException e) {
+                        ctx.status(400).json(RouteHelper.error(e.getMessage()));
+                        return;
+                    }
+                    workflowRepository.save(existing);
+                    ctx.status(200).json(existing);
+                });
+
+        // DELETE /workflows/{id} — delete or 404
+        router.delete(
+                "/workflows/{id}",
+                ctx -> {
+                    String id = ctx.pathParam("id");
+                    if (workflowRepository.findById(id).isEmpty()) {
+                        ctx.status(404).json(RouteHelper.notFound());
+                        return;
+                    }
+                    workflowRepository.delete(id);
+                    ctx.status(204);
+                });
     }
 }

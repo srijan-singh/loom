@@ -14,12 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.storage.repository;
 
 import com.loom.domain.Workspace;
 import com.loom.storage.DatabaseManager;
-
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -34,19 +32,15 @@ public class WorkspaceRepository extends BaseRepository<Workspace> {
     // queries
     private static final String TABLE = "workspaces";
 
-    private static final String FIND_BY_WORKFLOW = String.join(" ",
-            "SELECT w.* FROM workspaces w",
-            " JOIN workspace_workflows ww ON w.id = ww.workspace_id",
-            " WHERE ww.workflow_definition_id = ?"
-            );
+    private static final String FIND_BY_WORKFLOW =
+            String.join(
+                    " ",
+                    "SELECT w.* FROM workspaces w",
+                    " JOIN workspace_workflows ww ON w.id = ww.workspace_id",
+                    " WHERE ww.workflow_definition_id = ?");
 
-    private static final String SAVE = upsert(
-            TABLE,
-            COL_ID,
-            COL_NAME,
-            COL_DESCRIPTION,
-            COL_CREATED_AT
-    );
+    private static final String SAVE =
+            upsert(TABLE, COL_ID, COL_NAME, COL_DESCRIPTION, COL_CREATED_AT);
 
     public WorkspaceRepository(DatabaseManager db) {
         super(db, TABLE);
@@ -54,17 +48,20 @@ public class WorkspaceRepository extends BaseRepository<Workspace> {
     }
 
     public void save(Workspace workspace) {
-        db().update(SAVE, ps -> {
-            ps.setString(1, workspace.getId());
-            ps.setString(2, workspace.getName());
-            ps.setString(3, workspace.getDescription());
-            ps.setLong(4, workspace.getCreatedAt());
-        });
+        db().update(
+                        SAVE,
+                        ps -> {
+                            ps.setString(1, workspace.getId());
+                            ps.setString(2, workspace.getName());
+                            ps.setString(3, workspace.getDescription());
+                            ps.setLong(4, workspace.getCreatedAt());
+                        });
     }
 
     /** Returns all workspaces linked to the given workflow via the join table. */
     public List<Workspace> findByWorkflowId(String workflowDefinitionId) {
-        return db().queryList(FIND_BY_WORKFLOW, ps -> ps.setString(1, workflowDefinitionId), this::map);
+        return db().queryList(
+                        FIND_BY_WORKFLOW, ps -> ps.setString(1, workflowDefinitionId), this::map);
     }
 
     private Workspace map(ResultSet rs) throws SQLException {

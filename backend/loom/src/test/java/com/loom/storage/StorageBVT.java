@@ -14,29 +14,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.storage;
+
+import static com.loom.storage.TestFixtures.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 import com.loom.domain.*;
 import com.loom.storage.repository.*;
-import org.junit.jupiter.api.*;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
-
-import static com.loom.storage.TestFixtures.*;
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.*;
 
 /**
  * Build Verification Test — full end-to-end storage layer smoke test.
  *
- * <p>Uses a real SQLite file in a JVM temp directory. Fixture rows are
- * pre-populated from {@code testFixtures.sql} via {@link TestFixtures#load}.
- * Each test method covers exactly one repository and references fixed IDs
- * from {@link TestFixtures} — no shared mutable state between tests.
+ * <p>Uses a real SQLite file in a JVM temp directory. Fixture rows are pre-populated from {@code
+ * testFixtures.sql} via {@link TestFixtures#load}. Each test method covers exactly one repository
+ * and references fixed IDs from {@link TestFixtures} — no shared mutable state between tests.
  */
 @DisplayName("Storage BVT: SQLite persistence layer — full round-trip")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -61,13 +58,13 @@ class StorageBVT {
         db = new DatabaseManager(dbFile.toAbsolutePath().toString());
         TestFixtures.load(db);
 
-        skillRepo     = new SkillRepository(db);
-        mcpRepo       = new MCPConnectionRepository(db);
-        agentRepo     = new AgentRepository(db);
-        workflowRepo  = new WorkflowRepository(db);
-        sessionRepo   = new SessionRepository(db);
+        skillRepo = new SkillRepository(db);
+        mcpRepo = new MCPConnectionRepository(db);
+        agentRepo = new AgentRepository(db);
+        workflowRepo = new WorkflowRepository(db);
+        sessionRepo = new SessionRepository(db);
         workspaceRepo = new WorkspaceRepository(db);
-        execRepo      = new AgentExecutionRepository(db);
+        execRepo = new AgentExecutionRepository(db);
         knowledgeRepo = new WorkspaceKnowledgeRepository(db);
     }
 
@@ -107,10 +104,15 @@ class StorageBVT {
 
         Optional<Skill> foundComma = skillRepo.findById(commaSkill.getId());
         assertTrue(foundComma.isPresent());
-        assertEquals(2, foundComma.get().getTags().size(), "tag containing comma must not be split");
+        assertEquals(
+                2, foundComma.get().getTags().size(), "tag containing comma must not be split");
         assertTrue(foundComma.get().getTags().contains("a,b"));
-        assertEquals(1, skillRepo.findByTag("a,b").size(), "findByTag must match tag with comma exactly");
-        assertEquals(0, skillRepo.findByTag("a").size(), "findByTag must not match partial comma-split");
+        assertEquals(
+                1,
+                skillRepo.findByTag("a,b").size(),
+                "findByTag must match tag with comma exactly");
+        assertEquals(
+                0, skillRepo.findByTag("a").size(), "findByTag must not match partial comma-split");
 
         skillRepo.delete(commaSkill.getId());
         assertTrue(skillRepo.findById(commaSkill.getId()).isEmpty());
@@ -156,8 +158,8 @@ class StorageBVT {
     void workflowDefinition() {
         Optional<WorkflowDefinition> found = workflowRepo.findById(WORKFLOW_ID);
         assertTrue(found.isPresent());
-        assertEquals("Research Pipeline",    found.get().getName());
-        assertEquals(WorkflowType.CHAIN,     found.get().getType());
+        assertEquals("Research Pipeline", found.get().getName());
+        assertEquals(WorkflowType.CHAIN, found.get().getType());
         assertEquals(WorkflowCreatedBy.USER, found.get().getCreatedBy());
 
         assertNotNull(found.get().getNodes());
@@ -196,7 +198,8 @@ class StorageBVT {
 
     @Test
     @Order(6)
-    @DisplayName("SessionRepository: findById, findByWorkspaceId, findByStatus, save update, delete")
+    @DisplayName(
+            "SessionRepository: findById, findByWorkspaceId, findByStatus, save update, delete")
     void session() {
         // verify pre-populated completed session
         Optional<Session> found = sessionRepo.findById(SESSION_ID);
@@ -215,15 +218,16 @@ class StorageBVT {
         session.setStartedAt(System.currentTimeMillis());
         sessionRepo.save(session);
 
-        assertNull(sessionRepo.findById(session.getId()).get().getCompletedAt(),
+        assertNull(
+                sessionRepo.findById(session.getId()).get().getCompletedAt(),
                 "completedAt must be null while running");
 
         session.setStatus(SessionStatus.COMPLETED);
         session.setCompletedAt(System.currentTimeMillis());
         sessionRepo.save(session);
 
-        assertEquals(SessionStatus.COMPLETED,
-                sessionRepo.findById(session.getId()).get().getStatus());
+        assertEquals(
+                SessionStatus.COMPLETED, sessionRepo.findById(session.getId()).get().getStatus());
 
         sessionRepo.delete(session.getId());
         assertTrue(sessionRepo.findById(session.getId()).isEmpty());
@@ -238,7 +242,7 @@ class StorageBVT {
         // verify pre-populated completed execution
         Optional<AgentExecution> found = execRepo.findById(EXEC_ID);
         assertTrue(found.isPresent());
-        assertEquals(AgentExecutionStatus.COMPLETED,  found.get().getStatus());
+        assertEquals(AgentExecutionStatus.COMPLETED, found.get().getStatus());
         assertEquals("Found 10 results about AI.", found.get().getOutput());
         assertEquals("{\"query\":\"latest AI news\"}", found.get().getInputContext());
         assertNotNull(found.get().getCompletedAt());
@@ -252,7 +256,8 @@ class StorageBVT {
         exec.setStartedAt(System.currentTimeMillis());
         execRepo.save(exec);
 
-        assertNull(execRepo.findById(exec.getId()).get().getCompletedAt(),
+        assertNull(
+                execRepo.findById(exec.getId()).get().getCompletedAt(),
                 "completedAt must be null while running");
 
         exec.setStatus(AgentExecutionStatus.COMPLETED);
@@ -260,8 +265,8 @@ class StorageBVT {
         exec.setCompletedAt(System.currentTimeMillis());
         execRepo.save(exec);
 
-        assertEquals(AgentExecutionStatus.COMPLETED,
-                execRepo.findById(exec.getId()).get().getStatus());
+        assertEquals(
+                AgentExecutionStatus.COMPLETED, execRepo.findById(exec.getId()).get().getStatus());
 
         // cleanup — remove the transient execution so it does not appear in subsequent findAll()
         execRepo.delete(exec.getId());

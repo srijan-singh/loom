@@ -14,12 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.transport;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loom.engine.AgentRuntime;
+import com.loom.engine.GraphResolver;
+import com.loom.engine.StateManager;
+import com.loom.engine.WorkflowEngine;
 import com.loom.event.EventType;
 import com.loom.event.WorkflowEvent;
 import com.loom.llm.MockLLMProvider;
@@ -27,21 +31,18 @@ import com.loom.mcp.MCPClient;
 import com.loom.storage.DatabaseManager;
 import com.loom.storage.repository.*;
 import com.loom.transport.util.TestSSEClient;
-import org.junit.jupiter.api.*;
-
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.*;
 
 /**
  * Build Verification Test — full end-to-end SSE smoke test.
  *
- * Verifies: server starts → SSE client connects → broadcast delivers a
- * well-formed WorkflowEvent JSON → server shuts down cleanly.
+ * <p>Verifies: server starts → SSE client connects → broadcast delivers a well-formed WorkflowEvent
+ * JSON → server shuts down cleanly.
  */
 class LocalServerBVT {
 
@@ -61,25 +62,54 @@ class LocalServerBVT {
         dbFile.toFile().deleteOnExit();
 
         DatabaseManager db = new DatabaseManager(dbFile.toAbsolutePath().toString());
-        SkillRepository              skillRepo     = new SkillRepository(db);
-        MCPConnectionRepository      mcpRepo       = new MCPConnectionRepository(db);
-        AgentRepository              agentRepo     = new AgentRepository(db);
-        WorkflowRepository           workflowRepo  = new WorkflowRepository(db);
-        WorkspaceRepository          workspaceRepo = new WorkspaceRepository(db);
-        SessionRepository            sessionRepo   = new SessionRepository(db);
-        AgentExecutionRepository     execRepo      = new AgentExecutionRepository(db);
+        SkillRepository skillRepo = new SkillRepository(db);
+        MCPConnectionRepository mcpRepo = new MCPConnectionRepository(db);
+        AgentRepository agentRepo = new AgentRepository(db);
+        WorkflowRepository workflowRepo = new WorkflowRepository(db);
+        WorkspaceRepository workspaceRepo = new WorkspaceRepository(db);
+        SessionRepository sessionRepo = new SessionRepository(db);
+        AgentExecutionRepository execRepo = new AgentExecutionRepository(db);
         WorkspaceKnowledgeRepository knowledgeRepo = new WorkspaceKnowledgeRepository(db);
 
         sseManager = new SSEManager();
         MCPClient mcpClient = new MCPClient();
-        AgentRuntime agentRuntime = new AgentRuntime(
-                new MockLLMProvider(), mcpClient, sseManager,
-                skillRepo, knowledgeRepo, execRepo,
-                sessionRepo, workflowRepo, agentRepo);
+        AgentRuntime agentRuntime =
+                new AgentRuntime(
+                        new MockLLMProvider(),
+                        mcpClient,
+                        sseManager,
+                        skillRepo,
+                        knowledgeRepo,
+                        execRepo,
+                        sessionRepo,
+                        workflowRepo,
+                        agentRepo);
 
-        server = new LocalServer(sseManager, agentRuntime,
-                agentRepo, skillRepo, mcpRepo,
-                sessionRepo, workflowRepo, workspaceRepo);
+        GraphResolver graphResolver = new GraphResolver();
+        StateManager stateManager = new StateManager(execRepo);
+        WorkflowEngine workflowEngine =
+                new WorkflowEngine(
+                        agentRuntime,
+                        stateManager,
+                        graphResolver,
+                        sessionRepo,
+                        workflowRepo,
+                        execRepo,
+                        sseManager);
+
+        server =
+                new LocalServer(
+                        sseManager,
+                        agentRuntime,
+                        workflowEngine,
+                        agentRepo,
+                        skillRepo,
+                        mcpRepo,
+                        sessionRepo,
+                        execRepo,
+                        workflowRepo,
+                        workspaceRepo,
+                        graphResolver);
         server.start(port);
     }
 
@@ -100,11 +130,12 @@ class LocalServerBVT {
             Thread.sleep(200); // let Javalin register the SseClient
 
             // 2 — broadcast a WorkflowEvent
-            WorkflowEvent event = WorkflowEvent.builder()
-                    .eventType(EventType.SESSION_STARTED)
-                    .sessionId("bvt-session-1")
-                    .data(MAPPER.valueToTree(Map.of("message", "hello")))
-                    .build();
+            WorkflowEvent event =
+                    WorkflowEvent.builder()
+                            .eventType(EventType.SESSION_STARTED)
+                            .sessionId("bvt-session-1")
+                            .data(MAPPER.valueToTree(Map.of("message", "hello")))
+                            .build();
             sseManager.broadcast(event);
 
             // 3 — receive within 5 s
@@ -114,8 +145,8 @@ class LocalServerBVT {
             // 4 — parse and assert the JSON payload
             JsonNode json = MAPPER.readTree(raw);
             assertEquals("SESSION_STARTED", json.path("eventType").asText());
-            assertEquals("bvt-session-1",   json.path("sessionId").asText());
-            assertEquals("hello",            json.path("data").path("message").asText());
+            assertEquals("bvt-session-1", json.path("sessionId").asText());
+            assertEquals("hello", json.path("data").path("message").asText());
             long ts = json.path("timestampMs").asLong();
             assertTrue(ts > 1_700_000_000_000L, "timestampMs must be a plausible epoch-ms value");
 

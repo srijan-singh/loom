@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.engine;
 
 import com.loom.domain.AgentDefinition;
@@ -23,19 +22,17 @@ import com.loom.domain.WorkspaceKnowledge;
 import com.loom.llm.LLMRequest;
 import com.loom.llm.MCPToolDefinition;
 import com.loom.mcp.MCPClient;
-
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Assembles the {@link LLMRequest} for a single agent turn from its
- * definition, session, input context, and available workspace knowledge.
+ * Assembles the {@link LLMRequest} for a single agent turn from its definition, session, input
+ * context, and available workspace knowledge.
  *
  * <ul>
- *   <li>System prompt  = the agent's skill content markdown (may be null/empty)</li>
- *   <li>User prompt    = {@code roleDescription + "\n\n" + inputContext}</li>
- *   <li>Tools          = MCP tool definitions for each id in
- *                        {@code agentDefinition.allowedMcpIds}</li>
+ *   <li>System prompt = the agent's skill content markdown (may be null/empty)
+ *   <li>User prompt = {@code roleDescription + "\n\n" + inputContext}
+ *   <li>Tools = MCP tool definitions for each id in {@code agentDefinition.allowedMcpIds}
  * </ul>
  */
 public class ContextBuilder {
@@ -50,17 +47,18 @@ public class ContextBuilder {
      * Builds an {@link LLMRequest} ready to be sent to an LLM provider.
      *
      * @param agentDefinition the agent whose skill + role drive the prompts
-     * @param session         the current session (used for workspace scoping)
-     * @param skillContent    raw markdown content of the linked skill (may be null)
-     * @param inputContext    the user-facing input for this execution node
-     * @param knowledge       workspace knowledge snippets to append to the user prompt
+     * @param session the current session (used for workspace scoping)
+     * @param skillContent raw markdown content of the linked skill (may be null)
+     * @param inputContext the user-facing input for this execution node
+     * @param knowledge workspace knowledge snippets to append to the user prompt
      * @return fully-formed LLMRequest
      */
-    public LLMRequest build(AgentDefinition agentDefinition,
-                            Session session,
-                            String skillContent,
-                            String inputContext,
-                            List<WorkspaceKnowledge> knowledge) {
+    public LLMRequest build(
+            AgentDefinition agentDefinition,
+            Session session,
+            String skillContent,
+            String inputContext,
+            List<WorkspaceKnowledge> knowledge) {
 
         String systemPrompt = skillContent != null ? skillContent : "";
 
@@ -81,10 +79,12 @@ public class ContextBuilder {
         }
 
         List<MCPToolDefinition> tools = null;
-        if (agentDefinition.getAllowedMcpIds() != null && !agentDefinition.getAllowedMcpIds().isEmpty()) {
-            tools = agentDefinition.getAllowedMcpIds().stream()
-                    .flatMap(mcpId -> mcpClient.listTools(mcpId).stream())
-                    .collect(Collectors.toList());
+        if (agentDefinition.getAllowedMcpIds() != null
+                && !agentDefinition.getAllowedMcpIds().isEmpty()) {
+            tools =
+                    agentDefinition.getAllowedMcpIds().stream()
+                            .flatMap(mcpId -> mcpClient.listTools(mcpId).stream())
+                            .collect(Collectors.toList());
         }
 
         return LLMRequest.builder()

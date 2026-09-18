@@ -1,0 +1,131 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.loom.engine;
+
+import com.loom.domain.AgentExecution;
+import com.loom.domain.AgentExecutionStatus;
+import com.loom.domain.EdgeCondition;
+import com.loom.domain.WorkflowEdge;
+import com.loom.domain.WorkflowNode;
+import com.loom.storage.repository.AgentExecutionRepository;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class StateManager {
+
+    private final AgentExecutionRepository executionRepository;
+
+    /** In-memory index keyed by "sessionId:nodeId" for fast lookup and upsert. */
+    private final Map<String, AgentExecution> index = new HashMap<>();
+
+    public StateManager(AgentExecutionRepository executionRepository) {
+        this.executionRepository = executionRepository;
+    }
+
+    /**
+     * Creates or updates the AgentExecution record for (sessionId, nodeId) with the given status.
+     * Sets startedAt if transitioning to RUNNING; sets completedAt if transitioning to COMPLETED or
+     * FAILED.
+     */
+    public void setStatus(String sessionId, String nodeId, AgentExecutionStatus status) {
+        String key = sessionId + ":" + nodeId;
+        AgentExecution exec = index.get(key);
+        if (exec == null) {
+            exec = new AgentExecution();
+            exec.setSessionId(sessionId);
+            exec.setNodeId(nodeId);
+            index.put(key, exec);
+        }
+        exec.setStatus(status);
+        if (status == AgentExecutionStatus.RUNNING && exec.getStartedAt() == 0) {
+            exec.setStartedAt(System.currentTimeMillis());
+        }
+        if (status == AgentExecutionStatus.COMPLETED || status == AgentExecutionStatus.FAILED) {
+            exec.setCompletedAt(System.currentTimeMillis());
+        }
+        executionRepository.save(exec);
+    }
+
+    /**
+     * Returns the current status for (sessionId, nodeId). Returns AgentExecutionStatus.PENDING if
+     * no record exists.
+     */
+    public AgentExecutionStatus getStatus(String sessionId, String nodeId) {
+        String key = sessionId + ":" + nodeId;
+        AgentExecution exec = index.get(key);
+        if (exec == null) {
+            return AgentExecutionStatus.PENDING;
+        }
+        AgentExecutionStatus status = exec.getStatus();
+        return status != null ? status : AgentExecutionStatus.PENDING;
+    }
+
+    /**
+     * Returns true when all nodes that have an outgoing edge to nodeId in the plan have status
+     * COMPLETED. For the START node (no predecessors) returns true unconditionally.
+     */
+    public boolean areUpstreamsDone(String sessionId, String nodeId, ExecutionPlan plan) {
+        List<WorkflowNode> predecessors = new ArrayList<>();
+        for (WorkflowNode candidate : plan.getOrderedNodes()) {
+            for (WorkflowEdge edge : plan.getOutgoingEdges(candidate.getId())) {
+                if (nodeId.equals(edge.getToNodeId())) {
+                    predecessors.add(candidate);
+                    break;
+                }
+            }
+        }
+        if (predecessors.isEmpty()) {
+            return true;
+        }
+        for (WorkflowNode predecessor : predecessors) {
+            if (getStatus(sessionId, predecessor.getId()) != AgentExecutionStatus.COMPLETED) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Returns the list of WorkflowNodes that should be activated next, based on the outgoing edges
+     * from completedNodeId and the given status. - ON_SUCCESS → include only if status == COMPLETED
+     * - ON_FAILURE → include only if status == FAILED - ALWAYS → include regardless of status
+     */
+    public List<WorkflowNode> resolveNextNodes(
+            String sessionId,
+            String completedNodeId,
+            ExecutionPlan plan,
+            AgentExecutionStatus status) {
+        List<WorkflowNode> result = new ArrayList<>();
+        for (WorkflowEdge edge : plan.getOutgoingEdges(completedNodeId)) {
+            boolean include = false;
+            EdgeCondition condition = edge.getCondition();
+            if (condition == EdgeCondition.ON_SUCCESS) {
+                include = (status == AgentExecutionStatus.COMPLETED);
+            } else if (condition == EdgeCondition.ON_FAILURE) {
+                include = (status == AgentExecutionStatus.FAILED);
+            } else if (condition == EdgeCondition.ALWAYS) {
+                include = true;
+            }
+            if (include) {
+                result.add(plan.getNode(edge.getToNodeId()));
+            }
+        }
+        return result;
+    }
+}

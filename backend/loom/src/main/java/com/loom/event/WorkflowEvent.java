@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.event;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -34,48 +33,37 @@ import org.jspecify.annotations.Nullable;
 @JsonInclude(JsonInclude.Include.NON_NULL) // Don't serialize null fields
 public class WorkflowEvent {
 
-    /**
-     * Type of event - maps to EventType enum
-     */
+    /** Type of event - maps to EventType enum */
     private EventType eventType;
 
-    /**
-     * Unique identifier for the workflow session
-     */
+    /** Unique identifier for the workflow session */
     private String sessionId;
 
-    /**
-     * Optional: Specific workflow node this event relates to
-     */
-    @Nullable
-    private String nodeId;
+    /** Optional: Specific workflow node this event relates to */
+    @Nullable private String nodeId;
+
+    /** Optional: Specific agent execution this event relates to */
+    @Nullable private String agentExecutionId;
 
     /**
-     * Optional: Specific agent execution this event relates to
-     */
-    @Nullable
-    private String agentExecutionId;
-
-    /**
-     * Unix epoch milliseconds when this event occurred.
-     * Serialized as "timestampMs" in JSON so the unit is unambiguous to consumers.
+     * Unix epoch milliseconds when this event occurred. Serialized as "timestampMs" in JSON so the
+     * unit is unambiguous to consumers.
      */
     @JsonProperty("timestampMs")
     @Builder.Default
     private long timestampMs = System.currentTimeMillis();
 
     /**
-     * Event-specific payload serialized as a JSON object.
-     * Structure is event-type-specific; consumers should inspect {@code eventType}
-     * before reading fields. Examples:
+     * Event-specific payload serialized as a JSON object. Structure is event-type-specific;
+     * consumers should inspect {@code eventType} before reading fields. Examples:
+     *
      * <pre>
      *   SESSION_STARTED : {"workflowName": "...", "userId": "..."}
      *   AGENT_TOKEN     : {"token": "Hello", "index": 0}
      *   NODE_FAILED     : {"error": "...", "retryable": true}
      * </pre>
+     *
      * Use {@code ObjectMapper.valueToTree(map)} to convert a plain Map when building.
      */
-    @Nullable
-    @Builder.Default
-    private JsonNode data = NullNode.getInstance();
+    @Nullable @Builder.Default private JsonNode data = NullNode.getInstance();
 }

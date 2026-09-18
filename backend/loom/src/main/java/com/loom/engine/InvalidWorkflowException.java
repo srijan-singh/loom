@@ -14,20 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.loom.transport.routes;
+package com.loom.engine;
 
-import java.util.Map;
-
-/** Shared error-body factories used by all route handlers. */
-final class RouteHelper {
-
-    private RouteHelper() {}
-
-    static Map<String, String> notFound() {
-        return Map.of("error", "not_found");
-    }
-
-    static Map<String, String> error(String message) {
-        return Map.of("error", message);
+public class InvalidWorkflowException extends Exception {
+    public InvalidWorkflowException(String message) {
+        super(message);
     }
 }

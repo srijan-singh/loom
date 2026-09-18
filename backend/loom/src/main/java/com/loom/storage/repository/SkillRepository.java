@@ -14,12 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.storage.repository;
 
 import com.loom.domain.Skill;
 import com.loom.storage.DatabaseManager;
-
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -37,20 +35,22 @@ public class SkillRepository extends BaseRepository<Skill> {
     // queries
     private static final String TABLE = "skills";
 
-    private static final String FIND_BY_TAG = String.join(" ",
-            "SELECT DISTINCT s.* FROM skills s,",
-            " json_each(s.tags) t WHERE t.value = ?");
+    private static final String FIND_BY_TAG =
+            String.join(
+                    " ",
+                    "SELECT DISTINCT s.* FROM skills s,",
+                    " json_each(s.tags) t WHERE t.value = ?");
 
-    private static final String SAVE = upsert(
-            TABLE,
-            COL_ID,
-            COL_NAME,
-            COL_DESCRIPTION,
-            COL_CONTENT,
-            COL_TAGS,
-            COL_CREATED_AT,
-            COL_UPDATED_AT
-    );
+    private static final String SAVE =
+            upsert(
+                    TABLE,
+                    COL_ID,
+                    COL_NAME,
+                    COL_DESCRIPTION,
+                    COL_CONTENT,
+                    COL_TAGS,
+                    COL_CREATED_AT,
+                    COL_UPDATED_AT);
 
     public SkillRepository(DatabaseManager db) {
         super(db, TABLE);
@@ -58,15 +58,17 @@ public class SkillRepository extends BaseRepository<Skill> {
     }
 
     public void save(Skill skill) {
-        db().update(SAVE, ps -> {
-            ps.setString(1, skill.getId());
-            ps.setString(2, skill.getName());
-            ps.setString(3, skill.getDescription());
-            ps.setString(4, skill.getContent());
-            ps.setString(5, toJsonList(skill.getTags()));
-            ps.setLong(6, skill.getCreatedAt());
-            ps.setLong(7, skill.getUpdatedAt());
-        });
+        db().update(
+                        SAVE,
+                        ps -> {
+                            ps.setString(1, skill.getId());
+                            ps.setString(2, skill.getName());
+                            ps.setString(3, skill.getDescription());
+                            ps.setString(4, skill.getContent());
+                            ps.setString(5, toJsonList(skill.getTags()));
+                            ps.setLong(6, skill.getCreatedAt());
+                            ps.setLong(7, skill.getUpdatedAt());
+                        });
     }
 
     public List<Skill> findByTag(String tag) {
@@ -84,5 +86,4 @@ public class SkillRepository extends BaseRepository<Skill> {
         s.setUpdatedAt(rs.getLong(COL_UPDATED_AT));
         return s;
     }
-
 }

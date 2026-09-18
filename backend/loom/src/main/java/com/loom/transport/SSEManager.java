@@ -14,18 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.transport;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loom.event.WorkflowEvent;
 import io.javalin.http.sse.SseClient;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class SSEManager {
@@ -33,16 +31,15 @@ public class SSEManager {
     private final List<SseClient> clients = new CopyOnWriteArrayList<>();
     private final ObjectMapper mapper = new ObjectMapper();
 
-    /**
-     * Called by Javalin when a new client connects to /events
-     */
+    /** Called by Javalin when a new client connects to /events */
     public void attach(SseClient client) {
         clients.add(client);
 
-        client.onClose(() -> {
-            clients.remove(client);
-            log.info("Client disconnected. {} clients remaining", getClientCount());
-        });
+        client.onClose(
+                () -> {
+                    clients.remove(client);
+                    log.info("Client disconnected. {} clients remaining", getClientCount());
+                });
 
         log.info("Client connected. {} total clients", getClientCount());
 
@@ -52,9 +49,7 @@ public class SSEManager {
         client.keepAlive();
     }
 
-    /**
-     * Send a WorkflowEvent to ALL connected clients
-     */
+    /** Send a WorkflowEvent to ALL connected clients */
     public void broadcast(WorkflowEvent event) {
         // Serialize the event to JSON string
         String eventMessage;
@@ -70,25 +65,27 @@ public class SSEManager {
         List<SseClient> failedClients = new ArrayList<>();
 
         // Send data to all client
-        clients.forEach(client -> {
-            try {
-                client.sendEvent(eventMessage);
-            } catch (Exception e) {
-                log.warn("Failed to send event to client: {}", e.getMessage());
-                failedClients.add(client);
-            }
-        });
+        clients.forEach(
+                client -> {
+                    try {
+                        client.sendEvent(eventMessage);
+                    } catch (Exception e) {
+                        log.warn("Failed to send event to client: {}", e.getMessage());
+                        failedClients.add(client);
+                    }
+                });
 
         // Remove failed clients
         if (!failedClients.isEmpty()) {
             clients.removeAll(failedClients);
-            log.info("Removed {} disconnected clients. {} remaining", failedClients.size(), getClientCount());
+            log.info(
+                    "Removed {} disconnected clients. {} remaining",
+                    failedClients.size(),
+                    getClientCount());
         }
     }
 
-    /**
-     * Get current connection count
-     */
+    /** Get current connection count */
     public int getClientCount() {
         return clients.size();
     }

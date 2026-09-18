@@ -14,12 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.storage.repository;
 
 import com.loom.domain.AgentDefinition;
 import com.loom.storage.DatabaseManager;
-
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -37,18 +35,19 @@ public class AgentRepository extends BaseRepository<AgentDefinition> {
     // queries
     private static final String TABLE = "agent_definitions";
 
-    private static final String FIND_BY_SKILL_ID = "SELECT * FROM agent_definitions WHERE skill_id = ?";
+    private static final String FIND_BY_SKILL_ID =
+            "SELECT * FROM agent_definitions WHERE skill_id = ?";
 
-    private static final String SAVE  = upsert(
-            TABLE,
-            COL_ID,
-            COL_NAME,
-            COL_ROLE_DESCRIPTION,
-            COL_SKILL_ID,
-            COL_ALLOWED_MCP_IDS,
-            COL_CREATED_AT,
-            COL_UPDATED_AT
-    );
+    private static final String SAVE =
+            upsert(
+                    TABLE,
+                    COL_ID,
+                    COL_NAME,
+                    COL_ROLE_DESCRIPTION,
+                    COL_SKILL_ID,
+                    COL_ALLOWED_MCP_IDS,
+                    COL_CREATED_AT,
+                    COL_UPDATED_AT);
 
     public AgentRepository(DatabaseManager db) {
         super(db, TABLE);
@@ -56,15 +55,17 @@ public class AgentRepository extends BaseRepository<AgentDefinition> {
     }
 
     public void save(AgentDefinition agent) {
-        db().update(SAVE, ps -> {
-            ps.setString(1, agent.getId());
-            ps.setString(2, agent.getName());
-            ps.setString(3, agent.getRoleDescription());
-            ps.setString(4, agent.getSkillId());
-            ps.setString(5, toJsonList(agent.getAllowedMcpIds()));
-            ps.setLong(6, agent.getCreatedAt());
-            ps.setLong(7, agent.getUpdatedAt());
-        });
+        db().update(
+                        SAVE,
+                        ps -> {
+                            ps.setString(1, agent.getId());
+                            ps.setString(2, agent.getName());
+                            ps.setString(3, agent.getRoleDescription());
+                            ps.setString(4, agent.getSkillId());
+                            ps.setString(5, toJsonList(agent.getAllowedMcpIds()));
+                            ps.setLong(6, agent.getCreatedAt());
+                            ps.setLong(7, agent.getUpdatedAt());
+                        });
     }
 
     public List<AgentDefinition> findBySkillId(String skillId) {
@@ -82,5 +83,4 @@ public class AgentRepository extends BaseRepository<AgentDefinition> {
         a.setUpdatedAt(rs.getLong(COL_UPDATED_AT));
         return a;
     }
-
 }

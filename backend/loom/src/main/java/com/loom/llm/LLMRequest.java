@@ -14,18 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.llm;
 
+import java.util.List;
 import lombok.Builder;
 import lombok.Data;
 import org.jspecify.annotations.Nullable;
 
-import java.util.List;
-
 /**
- * Everything the LLM needs to produce a response: model selection, prompts,
- * conversation history, and the set of tools the agent may invoke.
+ * Everything the LLM needs to produce a response: model selection, prompts, conversation history,
+ * and the set of tools the agent may invoke.
  */
 @Data
 @Builder
@@ -40,21 +38,12 @@ public class LLMRequest {
     /** The current user turn. */
     private String userPrompt;
 
-    /**
-     * Prior conversation turns, oldest-first.
-     * Null or empty means a single-turn interaction.
-     */
-    @Nullable
-    private List<LLMMessage> history;
+    /** Prior conversation turns, oldest-first. Null or empty means a single-turn interaction. */
+    @Nullable private List<LLMMessage> history;
 
-    /**
-     * MCP tools available for the model to call.
-     * Null or empty means no tools are offered.
-     */
-    @Nullable
-    private List<MCPToolDefinition> tools;
+    /** MCP tools available for the model to call. Null or empty means no tools are offered. */
+    @Nullable private List<MCPToolDefinition> tools;
 
     /** Maximum completion tokens. Defaults to 4096 if not set. */
-    @Builder.Default
-    private int maxTokens = 4096;
+    @Builder.Default private int maxTokens = 4096;
 }

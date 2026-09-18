@@ -14,13 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.domain;
-
-import lombok.Data;
 
 import java.util.List;
 import java.util.UUID;
+import lombok.Data;
 
 @Data
 public class AgentDefinition {

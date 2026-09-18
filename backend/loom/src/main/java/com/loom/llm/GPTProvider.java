@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.llm;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -22,14 +21,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import lombok.extern.slf4j.Slf4j;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
-import okhttp3.ResponseBody;
-
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -39,28 +30,37 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import lombok.extern.slf4j.Slf4j;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 /**
  * Streams responses from OpenAI's Chat Completions API ({@code /v1/chat/completions}).
  *
  * <p>Configuration via environment variables:
+ *
  * <ul>
- *   <li>{@code OPENAI_API_KEY} (required)</li>
- *   <li>{@code OPENAI_MODEL}   (optional, default {@code gpt-4o})</li>
+ *   <li>{@code OPENAI_API_KEY} (required)
+ *   <li>{@code OPENAI_MODEL} (optional, default {@code gpt-4o})
  * </ul>
  *
  * <p>SSE event mapping:
+ *
  * <ul>
- *   <li>{@code delta.content} present and non-null → TOKEN</li>
- *   <li>{@code delta.tool_calls} present            → accumulate; emit TOOL_CALL on finish_reason</li>
- *   <li>{@code [DONE]} sentinel                     → DONE</li>
- *   <li>HTTP non-2xx or exception                   → ERROR</li>
+ *   <li>{@code delta.content} present and non-null → TOKEN
+ *   <li>{@code delta.tool_calls} present → accumulate; emit TOOL_CALL on finish_reason
+ *   <li>{@code [DONE]} sentinel → DONE
+ *   <li>HTTP non-2xx or exception → ERROR
  * </ul>
  */
 @Slf4j
 public class GPTProvider implements LLMGateway {
 
-    private static final String API_URL       = "https://api.openai.com/v1/chat/completions";
+    private static final String API_URL = "https://api.openai.com/v1/chat/completions";
     private static final String DEFAULT_MODEL = "gpt-4o";
 
     private static final MediaType JSON_MEDIA = MediaType.get("application/json; charset=utf-8");
@@ -71,20 +71,21 @@ public class GPTProvider implements LLMGateway {
     private final String model;
 
     public GPTProvider() {
-        this(new OkHttpClient.Builder()
-                .readTimeout(Duration.ZERO)          // streaming — no read deadline
-                .callTimeout(Duration.ofMinutes(10)) // hard ceiling per request
-                .build(),
+        this(
+                new OkHttpClient.Builder()
+                        .readTimeout(Duration.ZERO) // streaming — no read deadline
+                        .callTimeout(Duration.ofMinutes(10)) // hard ceiling per request
+                        .build(),
                 new ObjectMapper());
     }
 
     /** Package-private for testing with a mock HTTP client. */
     GPTProvider(OkHttpClient httpClient, ObjectMapper mapper) {
         this.httpClient = httpClient;
-        this.mapper     = mapper;
-        this.apiKey     = System.getenv("OPENAI_API_KEY");
+        this.mapper = mapper;
+        this.apiKey = System.getenv("OPENAI_API_KEY");
         String envModel = System.getenv("OPENAI_MODEL");
-        this.model      = (envModel != null && !envModel.isBlank()) ? envModel : DEFAULT_MODEL;
+        this.model = (envModel != null && !envModel.isBlank()) ? envModel : DEFAULT_MODEL;
     }
 
     @Override
@@ -102,12 +103,13 @@ public class GPTProvider implements LLMGateway {
             return;
         }
 
-        Request httpRequest = new Request.Builder()
-                .url(API_URL)
-                .addHeader("Authorization", "Bearer " + apiKey)
-                .addHeader("content-type", "application/json")
-                .post(RequestBody.create(body, JSON_MEDIA))
-                .build();
+        Request httpRequest =
+                new Request.Builder()
+                        .url(API_URL)
+                        .addHeader("Authorization", "Bearer " + apiKey)
+                        .addHeader("content-type", "application/json")
+                        .post(RequestBody.create(body, JSON_MEDIA))
+                        .build();
 
         try (Response response = httpClient.newCall(httpRequest).execute()) {
             if (!response.isSuccessful()) {
@@ -180,20 +182,20 @@ public class GPTProvider implements LLMGateway {
     // ── SSE parsing ──────────────────────────────────────────────────────────
 
     /**
-     * OpenAI streams Server-Sent Events where each {@code data:} line is a
-     * JSON chunk, terminated by the literal {@code data: [DONE]}.
+     * OpenAI streams Server-Sent Events where each {@code data:} line is a JSON chunk, terminated
+     * by the literal {@code data: [DONE]}.
      *
-     * <p>Tool-call accumulation: OpenAI spreads a single tool call across
-     * multiple chunks via {@code delta.tool_calls[].function.arguments} deltas.
-     * We accumulate per index and emit TOOL_CALL events when the stream ends or
-     * {@code finish_reason=tool_calls} is seen.
+     * <p>Tool-call accumulation: OpenAI spreads a single tool call across multiple chunks via
+     * {@code delta.tool_calls[].function.arguments} deltas. We accumulate per index and emit
+     * TOOL_CALL events when the stream ends or {@code finish_reason=tool_calls} is seen.
      */
     private void parseStream(ResponseBody body, Consumer<LLMResponse> consumer) throws Exception {
         // index → {name, accumulated-args}
         Map<Integer, ToolCallAccumulator> toolCalls = new HashMap<>();
 
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(body.byteStream(), StandardCharsets.UTF_8))) {
+        try (BufferedReader reader =
+                new BufferedReader(
+                        new InputStreamReader(body.byteStream(), StandardCharsets.UTF_8))) {
 
             String line;
             while ((line = reader.readLine()) != null) {
@@ -226,7 +228,7 @@ public class GPTProvider implements LLMGateway {
                 if (!choices.isArray() || choices.isEmpty()) continue;
 
                 JsonNode choice = choices.get(0);
-                JsonNode delta  = choice.path("delta");
+                JsonNode delta = choice.path("delta");
 
                 // TEXT token
                 JsonNode contentNode = delta.path("content");
@@ -240,7 +242,8 @@ public class GPTProvider implements LLMGateway {
                 if (toolCallsNode.isArray()) {
                     for (JsonNode tc : toolCallsNode) {
                         int index = tc.path("index").asInt(0);
-                        ToolCallAccumulator acc = toolCalls.computeIfAbsent(index, i -> new ToolCallAccumulator());
+                        ToolCallAccumulator acc =
+                                toolCalls.computeIfAbsent(index, i -> new ToolCallAccumulator());
                         String nameFragment = tc.path("function").path("name").asText("");
                         if (!nameFragment.isEmpty()) acc.name.append(nameFragment);
                         String argsFragment = tc.path("function").path("arguments").asText("");
@@ -261,8 +264,8 @@ public class GPTProvider implements LLMGateway {
         consumer.accept(LLMResponse.done());
     }
 
-    private void flushToolCalls(Map<Integer, ToolCallAccumulator> toolCalls,
-                                Consumer<LLMResponse> consumer) {
+    private void flushToolCalls(
+            Map<Integer, ToolCallAccumulator> toolCalls, Consumer<LLMResponse> consumer) {
         if (toolCalls.isEmpty()) return;
         List<Integer> indices = new ArrayList<>(toolCalls.keySet());
         indices.sort(Integer::compareTo);

@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.llm;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -22,6 +21,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Map;
+import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -30,36 +35,30 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Consumer;
-
 /**
  * Streams responses from Anthropic's Messages API ({@code /v1/messages}).
  *
  * <p>Configuration via environment variables:
+ *
  * <ul>
- *   <li>{@code ANTHROPIC_API_KEY} (required)</li>
- *   <li>{@code ANTHROPIC_MODEL}   (optional, default {@code claude-3-5-sonnet-20241022})</li>
+ *   <li>{@code ANTHROPIC_API_KEY} (required)
+ *   <li>{@code ANTHROPIC_MODEL} (optional, default {@code claude-3-5-sonnet-20241022})
  * </ul>
  *
  * <p>SSE event mapping:
+ *
  * <ul>
- *   <li>{@code content_block_delta} with {@code delta.type=text_delta} → TOKEN</li>
- *   <li>{@code content_block_stop}  after a {@code tool_use} block      → TOOL_CALL</li>
- *   <li>{@code message_stop}                                             → DONE</li>
- *   <li>HTTP non-2xx or {@code error} event                             → ERROR</li>
+ *   <li>{@code content_block_delta} with {@code delta.type=text_delta} → TOKEN
+ *   <li>{@code content_block_stop} after a {@code tool_use} block → TOOL_CALL
+ *   <li>{@code message_stop} → DONE
+ *   <li>HTTP non-2xx or {@code error} event → ERROR
  * </ul>
  */
 @Slf4j
 public class ClaudeProvider implements LLMGateway {
 
-    private static final String API_URL        = "https://api.anthropic.com/v1/messages";
-    private static final String DEFAULT_MODEL  = "claude-3-5-sonnet-20241022";
+    private static final String API_URL = "https://api.anthropic.com/v1/messages";
+    private static final String DEFAULT_MODEL = "claude-3-5-sonnet-20241022";
     private static final String ANTHROPIC_VERSION = "2023-06-01";
 
     private static final MediaType JSON_MEDIA = MediaType.get("application/json; charset=utf-8");
@@ -70,20 +69,21 @@ public class ClaudeProvider implements LLMGateway {
     private final String model;
 
     public ClaudeProvider() {
-        this(new OkHttpClient.Builder()
-                .readTimeout(Duration.ZERO)          // streaming — no read deadline
-                .callTimeout(Duration.ofMinutes(10)) // hard ceiling per request
-                .build(),
+        this(
+                new OkHttpClient.Builder()
+                        .readTimeout(Duration.ZERO) // streaming — no read deadline
+                        .callTimeout(Duration.ofMinutes(10)) // hard ceiling per request
+                        .build(),
                 new ObjectMapper());
     }
 
     /** Package-private for testing with a mock HTTP client. */
     ClaudeProvider(OkHttpClient httpClient, ObjectMapper mapper) {
         this.httpClient = httpClient;
-        this.mapper     = mapper;
-        this.apiKey     = System.getenv("ANTHROPIC_API_KEY");
+        this.mapper = mapper;
+        this.apiKey = System.getenv("ANTHROPIC_API_KEY");
         String envModel = System.getenv("ANTHROPIC_MODEL");
-        this.model      = (envModel != null && !envModel.isBlank()) ? envModel : DEFAULT_MODEL;
+        this.model = (envModel != null && !envModel.isBlank()) ? envModel : DEFAULT_MODEL;
     }
 
     @Override
@@ -101,13 +101,14 @@ public class ClaudeProvider implements LLMGateway {
             return;
         }
 
-        Request httpRequest = new Request.Builder()
-                .url(API_URL)
-                .addHeader("x-api-key", apiKey)
-                .addHeader("anthropic-version", ANTHROPIC_VERSION)
-                .addHeader("content-type", "application/json")
-                .post(RequestBody.create(body, JSON_MEDIA))
-                .build();
+        Request httpRequest =
+                new Request.Builder()
+                        .url(API_URL)
+                        .addHeader("x-api-key", apiKey)
+                        .addHeader("anthropic-version", ANTHROPIC_VERSION)
+                        .addHeader("content-type", "application/json")
+                        .post(RequestBody.create(body, JSON_MEDIA))
+                        .build();
 
         try (Response response = httpClient.newCall(httpRequest).execute()) {
             if (!response.isSuccessful()) {
@@ -173,21 +174,22 @@ public class ClaudeProvider implements LLMGateway {
     // ── SSE parsing ──────────────────────────────────────────────────────────
 
     /**
-     * Reads the Anthropic SSE stream line-by-line and translates each
-     * {@code data:} line into one or more {@link LLMResponse} events.
+     * Reads the Anthropic SSE stream line-by-line and translates each {@code data:} line into one
+     * or more {@link LLMResponse} events.
      *
-     * <p>Pending tool_use accumulation: Anthropic sends a {@code content_block_start}
-     * with {@code type=tool_use}, then one or more {@code content_block_delta}
-     * events with {@code delta.type=input_json_delta}, followed by
-     * {@code content_block_stop}.  We accumulate the JSON and emit TOOL_CALL at stop.
+     * <p>Pending tool_use accumulation: Anthropic sends a {@code content_block_start} with {@code
+     * type=tool_use}, then one or more {@code content_block_delta} events with {@code
+     * delta.type=input_json_delta}, followed by {@code content_block_stop}. We accumulate the JSON
+     * and emit TOOL_CALL at stop.
      */
     private void parseStream(ResponseBody body, Consumer<LLMResponse> consumer) throws Exception {
         // State for accumulating a tool_use block
-        String pendingToolName       = null;
+        String pendingToolName = null;
         StringBuilder pendingToolJson = new StringBuilder();
 
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(body.byteStream(), StandardCharsets.UTF_8))) {
+        try (BufferedReader reader =
+                new BufferedReader(
+                        new InputStreamReader(body.byteStream(), StandardCharsets.UTF_8))) {
 
             String line;
             while ((line = reader.readLine()) != null) {
@@ -205,49 +207,57 @@ public class ClaudeProvider implements LLMGateway {
 
                 String eventType = event.path("type").asText("");
                 switch (eventType) {
-
-                    case "content_block_start": {
-                        JsonNode block = event.path("content_block");
-                        if ("tool_use".equals(block.path("type").asText())) {
-                            pendingToolName = block.path("name").asText();
-                            pendingToolJson.setLength(0);
+                    case "content_block_start":
+                        {
+                            JsonNode block = event.path("content_block");
+                            if ("tool_use".equals(block.path("type").asText())) {
+                                pendingToolName = block.path("name").asText();
+                                pendingToolJson.setLength(0);
+                            }
+                            break;
                         }
-                        break;
-                    }
 
-                    case "content_block_delta": {
-                        JsonNode delta = event.path("delta");
-                        String deltaType = delta.path("type").asText("");
-                        if ("text_delta".equals(deltaType)) {
-                            String text = delta.path("text").asText("");
-                            if (!text.isEmpty()) consumer.accept(LLMResponse.token(text));
-                        } else if ("input_json_delta".equals(deltaType)) {
-                            pendingToolJson.append(delta.path("partial_json").asText(""));
+                    case "content_block_delta":
+                        {
+                            JsonNode delta = event.path("delta");
+                            String deltaType = delta.path("type").asText("");
+                            if ("text_delta".equals(deltaType)) {
+                                String text = delta.path("text").asText("");
+                                if (!text.isEmpty()) consumer.accept(LLMResponse.token(text));
+                            } else if ("input_json_delta".equals(deltaType)) {
+                                pendingToolJson.append(delta.path("partial_json").asText(""));
+                            }
+                            break;
                         }
-                        break;
-                    }
 
-                    case "content_block_stop": {
-                        if (pendingToolName != null) {
-                            Map<String, Object> input = parseToolInput(pendingToolJson.toString());
-                            consumer.accept(LLMResponse.toolCall(pendingToolName, input));
-                            pendingToolName = null;
-                            pendingToolJson.setLength(0);
+                    case "content_block_stop":
+                        {
+                            if (pendingToolName != null) {
+                                Map<String, Object> input =
+                                        parseToolInput(pendingToolJson.toString());
+                                consumer.accept(LLMResponse.toolCall(pendingToolName, input));
+                                pendingToolName = null;
+                                pendingToolJson.setLength(0);
+                            }
+                            break;
                         }
-                        break;
-                    }
 
-                    case "message_stop": {
-                        consumer.accept(LLMResponse.done());
-                        return;
-                    }
+                    case "message_stop":
+                        {
+                            consumer.accept(LLMResponse.done());
+                            return;
+                        }
 
-                    case "error": {
-                        String msg = event.path("error").path("message").asText("Unknown Anthropic error");
-                        log.warn("Anthropic SSE error event: {}", msg);
-                        consumer.accept(LLMResponse.error(msg));
-                        return;
-                    }
+                    case "error":
+                        {
+                            String msg =
+                                    event.path("error")
+                                            .path("message")
+                                            .asText("Unknown Anthropic error");
+                            log.warn("Anthropic SSE error event: {}", msg);
+                            consumer.accept(LLMResponse.error(msg));
+                            return;
+                        }
 
                     default:
                         // ping, message_start, message_delta, etc. — ignored
@@ -274,7 +284,10 @@ public class ClaudeProvider implements LLMGateway {
         }
     }
 
-    /** Truncates {@code s} to 500 characters for safe logging. Returns {@code null} for {@code null} input. */
+    /**
+     * Truncates {@code s} to 500 characters for safe logging. Returns {@code null} for {@code null}
+     * input.
+     */
     private static String sanitize(String s) {
         if (s == null) return null;
         return s.length() > 500 ? s.substring(0, 500) + "…" : s;

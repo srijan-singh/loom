@@ -32,3 +32,7 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### AI criven dev
+/.ai-driven-dev
+/spec

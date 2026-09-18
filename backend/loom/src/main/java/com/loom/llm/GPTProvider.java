@@ -90,6 +90,9 @@ public class GPTProvider implements LLMGateway {
 
     @Override
     public void send(LLMRequest request, Consumer<LLMResponse> tokenConsumer) {
+        if (Thread.currentThread().isInterrupted()) {
+            return;
+        }
         if (apiKey == null || apiKey.isBlank()) {
             tokenConsumer.accept(LLMResponse.error("OPENAI_API_KEY is not set"));
             return;
@@ -127,6 +130,10 @@ public class GPTProvider implements LLMGateway {
 
             parseStream(responseBody, tokenConsumer);
         } catch (Exception e) {
+            if (e instanceof InterruptedException || Thread.currentThread().isInterrupted()) {
+                Thread.currentThread().interrupt();
+                return;
+            }
             log.error("OpenAI streaming error", e);
             tokenConsumer.accept(LLMResponse.error("Streaming error: " + e.getMessage()));
         }
@@ -199,6 +206,7 @@ public class GPTProvider implements LLMGateway {
 
             String line;
             while ((line = reader.readLine()) != null) {
+                if (Thread.currentThread().isInterrupted()) return;
                 if (!line.startsWith("data:")) continue;
                 String data = line.substring(5).trim();
 

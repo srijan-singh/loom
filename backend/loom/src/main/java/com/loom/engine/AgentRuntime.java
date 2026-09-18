@@ -123,6 +123,9 @@ public class AgentRuntime {
         }
         String output = runNode(session, node, agentOpt.get(), inputContext);
         if (output == null) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw new RuntimeException("node execution cancelled for node: " + node.getId());
+            }
             throw new RuntimeException("node execution failed for node: " + node.getId());
         }
         return output;
@@ -194,17 +197,27 @@ public class AgentRuntime {
      */
     private String runNode(
             Session session, WorkflowNode node, AgentDefinition agent, String inputContext) {
-        // 1. Create execution record (status RUNNING)
-        AgentExecution execution = new AgentExecution();
+        // 1. Create or update execution record (status RUNNING)
+        AgentExecution execution =
+                executionRepository
+                        .findBySessionIdAndNodeId(session.getId(), node.getId())
+                        .orElseGet(AgentExecution::new);
         execution.setSessionId(session.getId());
         execution.setNodeId(node.getId());
         execution.setAgentDefinitionId(agent.getId());
         execution.setStatus(AgentExecutionStatus.RUNNING);
         execution.setInputContext(inputContext);
-        execution.setStartedAt(System.currentTimeMillis());
+        if (execution.getStartedAt() == 0) {
+            execution.setStartedAt(System.currentTimeMillis());
+        }
         executionRepository.save(execution);
 
         try {
+            if (Thread.currentThread().isInterrupted()) {
+                markExecutionFailed(execution, "cancelled");
+                return null;
+            }
+
             // 2. Load skill content
             String skillContent = null;
             if (agent.getSkillId() != null) {
@@ -234,6 +247,9 @@ public class AgentRuntime {
             llmGateway.send(
                     current[0],
                     response -> {
+                        if (Thread.currentThread().isInterrupted()) {
+                            return;
+                        }
                         switch (response.getType()) {
                             case LLMResponse.TOKEN:
                                 outputBuilder.append(response.getContent());
@@ -258,6 +274,9 @@ public class AgentRuntime {
                                             EventType.AGENT_TOOL_CALL,
                                             Map.of("toolName", toolName, "toolInput", toolInput));
                                     String toolResult = mcpClient.execute(toolName, toolInput);
+                                    if (Thread.currentThread().isInterrupted()) {
+                                        return;
+                                    }
                                     broadcast(
                                             session.getId(),
                                             EventType.AGENT_TOOL_RESULT,
@@ -287,6 +306,11 @@ public class AgentRuntime {
                         }
                     });
 
+            if (Thread.currentThread().isInterrupted()) {
+                markExecutionFailed(execution, "cancelled");
+                return null;
+            }
+
             if (hadError[0]) {
                 markExecutionFailed(execution, "LLM returned an error");
                 return null;
@@ -297,6 +321,9 @@ public class AgentRuntime {
                 llmGateway.send(
                         current[0],
                         response -> {
+                            if (Thread.currentThread().isInterrupted()) {
+                                return;
+                            }
                             if (response.getType().equals(LLMResponse.TOKEN)) {
                                 outputBuilder.append(response.getContent());
                                 broadcast(
@@ -310,6 +337,11 @@ public class AgentRuntime {
                                 hadError[0] = true;
                             }
                         });
+            }
+
+            if (Thread.currentThread().isInterrupted()) {
+                markExecutionFailed(execution, "cancelled");
+                return null;
             }
 
             if (hadError[0]) {
@@ -341,6 +373,11 @@ public class AgentRuntime {
             return output;
 
         } catch (Exception e) {
+            if (e instanceof InterruptedException || Thread.currentThread().isInterrupted()) {
+                Thread.currentThread().interrupt();
+                markExecutionFailed(execution, "cancelled");
+                return null;
+            }
             log.error(
                     "Unexpected error during node execution session={} node={}",
                     session.getId(),

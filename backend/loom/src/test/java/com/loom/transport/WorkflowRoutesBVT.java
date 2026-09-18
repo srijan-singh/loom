@@ -422,5 +422,13 @@ class WorkflowRoutesBVT {
         assertTrue(body.has("executions"));
         assertEquals("COMPLETED", body.path("session").path("status").asText());
         assertTrue(body.path("executions").size() >= 1, "At least one execution row must exist");
+        // Each executed worker node has exactly one execution record matching its final output and
+        // COMPLETED status
+        JsonNode executions = body.path("executions");
+        for (JsonNode exec : executions) {
+            assertFalse(
+                    exec.path("output").asText().isEmpty(), "Execution output should be populated");
+            assertEquals("COMPLETED", exec.path("status").asText());
+        }
     }
 }

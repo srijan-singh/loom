@@ -404,4 +404,41 @@ class WorkflowEngineTest {
         assertThat(types).contains(EventType.NODE_FAILED);
         assertThat(types).contains(EventType.SESSION_FAILED);
     }
+
+    @Test
+    void workerFailureWithNullMessageUsesExceptionClassNameAsReason() {
+        WorkflowNode start = node("start", NodeType.START);
+        WorkflowNode w1 = node("w1", NodeType.WORKER);
+        WorkflowNode end = node("end", NodeType.END);
+
+        WorkflowDefinition wf =
+                chainWorkflow(
+                        "wf-npe",
+                        Arrays.asList(start, w1, end),
+                        Arrays.asList(
+                                edge("start", "w1", EdgeCondition.ALWAYS),
+                                edge("w1", "end", EdgeCondition.ALWAYS)));
+
+        Session s = session("s-npe", "wf-npe");
+        when(sessionRepository.findById("s-npe")).thenReturn(Optional.of(s));
+        when(workflowRepository.findById("wf-npe")).thenReturn(Optional.of(wf));
+        doThrow(new NullPointerException())
+                .when(agentRuntime)
+                .executeNode(anyString(), any(WorkflowNode.class), anyString());
+
+        engine.run("s-npe", "input");
+
+        assertThat(s.getStatus()).isEqualTo(SessionStatus.FAILED);
+        ArgumentCaptor<WorkflowEvent> captor = ArgumentCaptor.forClass(WorkflowEvent.class);
+        verify(sseManager, atLeastOnce()).broadcast(captor.capture());
+        WorkflowEvent nodeFailedEvent =
+                captor.getAllValues().stream()
+                        .filter(e -> e.getEventType() == EventType.NODE_FAILED)
+                        .findFirst()
+                        .orElseThrow();
+        // Since future.get throws ExecutionException wrapping NullPointerException, cause is NPE,
+        // simple name is NullPointerException
+        assertThat(nodeFailedEvent.getData().get("reason").asText())
+                .isEqualTo("NullPointerException");
+    }
 }

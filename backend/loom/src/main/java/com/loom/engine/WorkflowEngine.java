@@ -326,14 +326,15 @@ public class WorkflowEngine {
                 propagateWaiting(sessionId, nodeId, plan, AgentExecutionStatus.FAILED);
             } catch (Exception e) {
                 stateManager.setStatus(sessionId, nodeId, AgentExecutionStatus.FAILED);
+                Throwable target = e.getCause() != null ? e.getCause() : e;
+                String reason =
+                        target.getMessage() != null
+                                ? target.getMessage()
+                                : target.getClass().getSimpleName();
                 broadcast(
                         sessionId,
                         EventType.NODE_FAILED,
-                        Map.of(
-                                "nodeId",
-                                nodeId,
-                                "reason",
-                                e.getCause() != null ? e.getCause().getMessage() : e.getMessage()));
+                        Map.of("nodeId", nodeId, "reason", reason));
                 // Activate ON_FAILURE successors
                 List<WorkflowNode> nextNodes =
                         stateManager.resolveNextNodes(

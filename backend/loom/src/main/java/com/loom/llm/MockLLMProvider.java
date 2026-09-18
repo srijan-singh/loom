@@ -35,7 +35,13 @@ public class MockLLMProvider implements LLMGateway {
         log.warn(
                 "MockLLMProvider active — set ANTHROPIC_API_KEY or OPENAI_API_KEY for a real provider");
         for (String token : TOKENS) {
+            if (Thread.currentThread().isInterrupted()) {
+                return;
+            }
             tokenConsumer.accept(LLMResponse.token(token));
+        }
+        if (Thread.currentThread().isInterrupted()) {
+            return;
         }
         tokenConsumer.accept(LLMResponse.done());
     }

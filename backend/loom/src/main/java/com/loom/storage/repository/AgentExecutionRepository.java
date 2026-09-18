@@ -22,6 +22,7 @@ import com.loom.storage.DatabaseManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.Optional;
 
 public class AgentExecutionRepository extends BaseRepository<AgentExecution> {
 
@@ -38,6 +39,15 @@ public class AgentExecutionRepository extends BaseRepository<AgentExecution> {
 
     // queries
     private static final String TABLE = "agent_executions";
+
+    private static final String FIND_BY_SESSION_ID_AND_NODE_ID =
+            "SELECT * FROM "
+                    + TABLE
+                    + " WHERE "
+                    + COL_SESSION_ID
+                    + " = ? AND "
+                    + COL_NODE_ID
+                    + " = ?";
 
     private static final String SAVE =
             upsert(
@@ -56,6 +66,16 @@ public class AgentExecutionRepository extends BaseRepository<AgentExecution> {
     public AgentExecutionRepository(DatabaseManager db) {
         super(db, TABLE);
         setMapper(this::map);
+    }
+
+    public Optional<AgentExecution> findBySessionIdAndNodeId(String sessionId, String nodeId) {
+        return db().queryOne(
+                        FIND_BY_SESSION_ID_AND_NODE_ID,
+                        ps -> {
+                            ps.setString(1, sessionId);
+                            ps.setString(2, nodeId);
+                        },
+                        this::map);
     }
 
     public void save(AgentExecution exec) {

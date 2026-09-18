@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -74,6 +75,12 @@ class WorkflowEngineTest {
     private final ExecutorService syncNodeExecutor = Executors.newSingleThreadExecutor();
 
     private WorkflowEngine engine;
+
+    @AfterEach
+    void tearDown() {
+        syncExecutor.shutdownNow();
+        syncNodeExecutor.shutdownNow();
+    }
 
     @BeforeEach
     void setUp() {
@@ -157,7 +164,9 @@ class WorkflowEngineTest {
         Session s = session("s1", "wf1");
         when(sessionRepository.findById("s1")).thenReturn(Optional.of(s));
         when(workflowRepository.findById("wf1")).thenReturn(Optional.of(wf));
-        // agentRuntime.execute completes normally (default mock: does nothing)
+        // agentRuntime.executeNode returns empty string by default (does nothing for the mock)
+        when(agentRuntime.executeNode(anyString(), any(WorkflowNode.class), anyString()))
+                .thenReturn("");
 
         engine.run("s1", "input");
 
@@ -196,8 +205,9 @@ class WorkflowEngineTest {
 
         Thread.sleep(300);
 
-        // agentRuntime.execute should never be called (no worker nodes)
-        verify(agentRuntime, never()).execute(anyString(), anyString());
+        // agentRuntime.executeNode should never be called (no worker nodes)
+        verify(agentRuntime, never())
+                .executeNode(anyString(), any(WorkflowNode.class), anyString());
         // isActive returns false after completion
         assertThat(engine.isActive("s2")).isFalse();
     }
@@ -287,7 +297,7 @@ class WorkflowEngineTest {
         when(workflowRepository.findById("wf4")).thenReturn(Optional.of(wf));
         doThrow(new RuntimeException("w1 exploded"))
                 .when(agentRuntime)
-                .execute(anyString(), anyString());
+                .executeNode(anyString(), any(WorkflowNode.class), anyString());
 
         engine.run("s5", "input");
 
@@ -320,11 +330,11 @@ class WorkflowEngineTest {
         when(sessionRepository.findById("s6")).thenReturn(Optional.of(s));
         when(workflowRepository.findById("wf5")).thenReturn(Optional.of(wf));
 
-        // w1 fails on first call; recovery (second call) succeeds
+        // w1 fails on first call; recovery (second call) succeeds (returns empty string)
         doThrow(new RuntimeException("w1 failed"))
-                .doNothing()
+                .doReturn("")
                 .when(agentRuntime)
-                .execute(anyString(), anyString());
+                .executeNode(anyString(), any(WorkflowNode.class), anyString());
 
         engine.run("s6", "input");
 
@@ -361,10 +371,11 @@ class WorkflowEngineTest {
                             return null;
                         })
                 .when(agentRuntime)
-                .execute(anyString(), anyString());
+                .executeNode(anyString(), any(WorkflowNode.class), anyString());
 
         // Build a separate engine with 1-second timeout
         StateManager sm2 = new StateManager(execRepo);
+        ExecutorService timeoutNodeExecutor = Executors.newSingleThreadExecutor();
         WorkflowEngine timeoutEngine =
                 new WorkflowEngine(
                         agentRuntime,
@@ -375,10 +386,14 @@ class WorkflowEngineTest {
                         execRepo,
                         sseManager,
                         syncExecutor,
-                        Executors.newSingleThreadExecutor());
+                        timeoutNodeExecutor);
         timeoutEngine.nodeTimeoutOverride = 1L;
 
-        timeoutEngine.run("s7", "input");
+        try {
+            timeoutEngine.run("s7", "input");
+        } finally {
+            timeoutNodeExecutor.shutdownNow();
+        }
 
         assertThat(s.getStatus()).isEqualTo(SessionStatus.FAILED);
 

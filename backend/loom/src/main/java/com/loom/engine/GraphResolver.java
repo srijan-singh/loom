@@ -29,14 +29,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 
+/**
+ * Validates a {@link WorkflowDefinition} and produces a topologically-ordered {@link ExecutionPlan}
+ * ready for execution by the {@link WorkflowEngine}.
+ *
+ * <p>Validation includes: null/blank node IDs, duplicate node IDs, null/unknown edge endpoints,
+ * exactly one START and one END node, connectivity of all nodes, and cycle detection via Kahn's
+ * algorithm.
+ */
 public class GraphResolver {
 
     /**
      * Validates the workflow definition and returns an ExecutionPlan with nodes in topological
      * (execution) order.
      *
-     * @throws InvalidWorkflowException if the graph is null, not CHAIN type, missing START or END,
-     *     has disconnected nodes, or contains a cycle.
+     * @param workflow the workflow definition to validate and resolve
+     * @throws InvalidWorkflowException if the graph is null, not CHAIN type, contains null/blank or
+     *     duplicate node IDs, references unknown edge endpoints, is missing START or END, has
+     *     disconnected nodes, or contains a cycle.
      */
     public ExecutionPlan resolve(WorkflowDefinition workflow) throws InvalidWorkflowException {
         // 1. Null guard
@@ -58,13 +68,24 @@ public class GraphResolver {
         List<WorkflowEdge> edges =
                 workflow.getEdges() != null ? workflow.getEdges() : Collections.emptyList();
 
-        // 4. Build nodeById
+        // 4. Build nodeById — validate each node before inserting
         Map<String, WorkflowNode> nodeById = new HashMap<>();
         for (WorkflowNode node : nodes) {
-            nodeById.put(node.getId(), node);
+            if (node == null) {
+                throw new InvalidWorkflowException("workflow contains a null node");
+            }
+            String id = node.getId();
+            if (id == null || id.isBlank()) {
+                throw new InvalidWorkflowException(
+                        "workflow contains a node with a null or blank id");
+            }
+            if (nodeById.containsKey(id)) {
+                throw new InvalidWorkflowException("duplicate node id: '" + id + "'");
+            }
+            nodeById.put(id, node);
         }
 
-        // 5. Build edgesByFromNode and 6. incomingCount
+        // 5. Build edgesByFromNode and 6. incomingCount — validate each edge before inserting
         Map<String, List<WorkflowEdge>> edgesByFromNode = new HashMap<>();
         Map<String, Integer> incomingCount = new HashMap<>();
         for (WorkflowNode node : nodes) {
@@ -72,8 +93,21 @@ public class GraphResolver {
             incomingCount.put(node.getId(), 0);
         }
         for (WorkflowEdge edge : edges) {
-            edgesByFromNode.get(edge.getFromNodeId()).add(edge);
-            incomingCount.merge(edge.getToNodeId(), 1, Integer::sum);
+            if (edge == null) {
+                throw new InvalidWorkflowException("workflow contains a null edge");
+            }
+            String fromId = edge.getFromNodeId();
+            String toId = edge.getToNodeId();
+            if (!nodeById.containsKey(fromId)) {
+                throw new InvalidWorkflowException(
+                        "edge references unknown fromNodeId: '" + fromId + "'");
+            }
+            if (!nodeById.containsKey(toId)) {
+                throw new InvalidWorkflowException(
+                        "edge references unknown toNodeId: '" + toId + "'");
+            }
+            edgesByFromNode.get(fromId).add(edge);
+            incomingCount.merge(toId, 1, Integer::sum);
         }
 
         // 7. Validate exactly one START node

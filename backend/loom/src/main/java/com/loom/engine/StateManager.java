@@ -23,17 +23,28 @@ import com.loom.domain.WorkflowEdge;
 import com.loom.domain.WorkflowNode;
 import com.loom.storage.repository.AgentExecutionRepository;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Tracks the per-node execution status for all active workflow sessions.
+ *
+ * <p>Maintains an in-memory {@link ConcurrentHashMap} index keyed by {@code "sessionId:nodeId"} for
+ * fast, thread-safe status lookup and atomic upsert, backed by an {@link AgentExecutionRepository}
+ * for persistence.
+ */
 public class StateManager {
 
     private final AgentExecutionRepository executionRepository;
 
     /** In-memory index keyed by "sessionId:nodeId" for fast lookup and upsert. */
-    private final Map<String, AgentExecution> index = new HashMap<>();
+    private final ConcurrentHashMap<String, AgentExecution> index = new ConcurrentHashMap<>();
 
+    /**
+     * Constructs a StateManager backed by the given repository.
+     *
+     * @param executionRepository repository used to persist agent execution records
+     */
     public StateManager(AgentExecutionRepository executionRepository) {
         this.executionRepository = executionRepository;
     }
@@ -45,20 +56,25 @@ public class StateManager {
      */
     public void setStatus(String sessionId, String nodeId, AgentExecutionStatus status) {
         String key = sessionId + ":" + nodeId;
-        AgentExecution exec = index.get(key);
-        if (exec == null) {
-            exec = new AgentExecution();
-            exec.setSessionId(sessionId);
-            exec.setNodeId(nodeId);
-            index.put(key, exec);
-        }
-        exec.setStatus(status);
-        if (status == AgentExecutionStatus.RUNNING && exec.getStartedAt() == 0) {
-            exec.setStartedAt(System.currentTimeMillis());
-        }
-        if (status == AgentExecutionStatus.COMPLETED || status == AgentExecutionStatus.FAILED) {
-            exec.setCompletedAt(System.currentTimeMillis());
-        }
+        AgentExecution exec =
+                index.compute(
+                        key,
+                        (k, existing) -> {
+                            AgentExecution e = existing != null ? existing : new AgentExecution();
+                            if (existing == null) {
+                                e.setSessionId(sessionId);
+                                e.setNodeId(nodeId);
+                            }
+                            e.setStatus(status);
+                            if (status == AgentExecutionStatus.RUNNING && e.getStartedAt() == 0) {
+                                e.setStartedAt(System.currentTimeMillis());
+                            }
+                            if (status == AgentExecutionStatus.COMPLETED
+                                    || status == AgentExecutionStatus.FAILED) {
+                                e.setCompletedAt(System.currentTimeMillis());
+                            }
+                            return e;
+                        });
         executionRepository.save(exec);
     }
 

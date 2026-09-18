@@ -64,6 +64,19 @@ public class AgentRuntime {
     private final ReportWriter reportWriter;
     private final ObjectMapper mapper = new ObjectMapper();
 
+    /**
+     * Constructs an AgentRuntime with all required collaborators.
+     *
+     * @param llmGateway gateway used to stream LLM responses
+     * @param mcpClient client used to invoke MCP tools
+     * @param sseManager manager used to broadcast SSE events to connected clients
+     * @param skillRepository repository for loading agent skill markdown
+     * @param knowledgeRepository repository for reading and writing workspace knowledge
+     * @param executionRepository repository for persisting agent execution records
+     * @param sessionRepository repository for reading and updating session state
+     * @param workflowRepository repository for loading workflow definitions
+     * @param agentRepository repository for loading agent definitions
+     */
     public AgentRuntime(
             LLMGateway llmGateway,
             MCPClient mcpClient,
@@ -85,6 +98,34 @@ public class AgentRuntime {
         this.agentRepository = agentRepository;
         this.contextBuilder = new ContextBuilder(mcpClient);
         this.reportWriter = new ReportWriter(knowledgeRepository);
+    }
+
+    /**
+     * Executes a single workflow node for the given session. Loads the agent definition referenced
+     * by the node, runs the LLM/tool chain, persists the execution record, and returns the node
+     * output. Does NOT modify session status — the caller (WorkflowEngine) owns that.
+     *
+     * @param sessionId id of the active session
+     * @param node the workflow node to execute
+     * @param inputContext the context to pass as input to the node
+     * @return the node's output text, or an empty string if the output was blank
+     * @throws RuntimeException if the agent is not found, or if the LLM returns an error
+     */
+    public String executeNode(String sessionId, WorkflowNode node, String inputContext) {
+        Optional<Session> sessionOpt = sessionRepository.findById(sessionId);
+        if (sessionOpt.isEmpty()) {
+            throw new RuntimeException("session not found: " + sessionId);
+        }
+        Session session = sessionOpt.get();
+        Optional<AgentDefinition> agentOpt = agentRepository.findById(node.getAgentDefinitionId());
+        if (agentOpt.isEmpty()) {
+            throw new RuntimeException("agent not found: " + node.getAgentDefinitionId());
+        }
+        String output = runNode(session, node, agentOpt.get(), inputContext);
+        if (output == null) {
+            throw new RuntimeException("node execution failed for node: " + node.getId());
+        }
+        return output;
     }
 
     /**
@@ -136,7 +177,7 @@ public class AgentRuntime {
 
             contextCarry = runNode(session, node, agent, contextCarry);
             if (contextCarry == null) {
-                // runNode already marked session FAILED
+                failSession(session, "node execution failed: " + node.getId());
                 return;
             }
         }
@@ -248,7 +289,6 @@ public class AgentRuntime {
 
             if (hadError[0]) {
                 markExecutionFailed(execution, "LLM returned an error");
-                failSession(session, "LLM error during node " + node.getId());
                 return null;
             }
 
@@ -274,7 +314,6 @@ public class AgentRuntime {
 
             if (hadError[0]) {
                 markExecutionFailed(execution, "LLM returned an error (follow-up turn)");
-                failSession(session, "LLM error during follow-up for node " + node.getId());
                 return null;
             }
 
@@ -308,13 +347,19 @@ public class AgentRuntime {
                     node.getId(),
                     e);
             markExecutionFailed(execution, e.getMessage());
-            failSession(session, "unexpected error: " + e.getMessage());
             return null;
         }
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
+    /**
+     * Marks the given execution record as FAILED, records the failure reason as output, sets {@code
+     * completedAt}, and persists it.
+     *
+     * @param execution the execution record to update
+     * @param reason human-readable description of the failure
+     */
     private void markExecutionFailed(AgentExecution execution, String reason) {
         execution.setStatus(AgentExecutionStatus.FAILED);
         execution.setOutput(reason);
@@ -322,6 +367,13 @@ public class AgentRuntime {
         executionRepository.save(execution);
     }
 
+    /**
+     * Transitions the session to FAILED status, records {@code completedAt}, persists it, and
+     * broadcasts a {@link com.loom.event.EventType#SESSION_FAILED} event.
+     *
+     * @param session the session to fail
+     * @param reason human-readable description of the failure
+     */
     private void failSession(Session session, String reason) {
         session.setStatus(SessionStatus.FAILED);
         session.setCompletedAt(System.currentTimeMillis());
@@ -329,6 +381,15 @@ public class AgentRuntime {
         broadcast(session.getId(), EventType.SESSION_FAILED, Map.of("error", reason));
     }
 
+    /**
+     * Builds a new {@link LLMRequest} by appending the tool result to the conversation history of
+     * {@code prev}, ready for a follow-up LLM turn.
+     *
+     * @param prev the original request whose history and parameters are carried forward
+     * @param toolName the name of the tool that was called
+     * @param toolResult the result returned by the tool
+     * @return a new request with the tool result appended as the latest user message
+     */
     private LLMRequest appendToolResult(LLMRequest prev, String toolName, String toolResult) {
         List<com.loom.llm.LLMMessage> history =
                 prev.getHistory() != null ? new ArrayList<>(prev.getHistory()) : new ArrayList<>();
@@ -346,6 +407,14 @@ public class AgentRuntime {
                 .build();
     }
 
+    /**
+     * Broadcasts a {@link WorkflowEvent} to all connected SSE clients. Swallows and logs any
+     * exception to prevent broadcast failures from interrupting node execution.
+     *
+     * @param sessionId id of the session associated with the event
+     * @param type the event type to broadcast
+     * @param data additional key/value data to include in the event payload
+     */
     private void broadcast(String sessionId, EventType type, Map<String, Object> data) {
         try {
             WorkflowEvent event =

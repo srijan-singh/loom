@@ -26,10 +26,20 @@ import io.javalin.router.JavalinDefaultRoutingApi;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Registers the HTTP routes that manage {@link com.loom.domain.Session} lifecycle:
+ *
+ * <ul>
+ *   <li>{@code GET /sessions} — list all sessions
+ *   <li>{@code GET /sessions/{id}} — get a session with its execution records
+ *   <li>{@code POST /sessions} — create a new session
+ *   <li>{@code DELETE /sessions/{id}} — delete a session (409 if active or RUNNING)
+ *   <li>{@code POST /sessions/{id}/run} — start async execution; 202 on acceptance, 409 on
+ *       duplicate or overload
+ * </ul>
+ */
 @Slf4j
 public class SessionRoutes {
 
@@ -37,9 +47,13 @@ public class SessionRoutes {
     private final WorkflowEngine workflowEngine;
     private final AgentExecutionRepository executionRepository;
 
-    /** Guards against duplicate concurrent runs for the same session. */
-    private final Set<String> activeSessions = ConcurrentHashMap.newKeySet();
-
+    /**
+     * Constructs a SessionRoutes with the required collaborators.
+     *
+     * @param sessionRepository repository for reading, creating, and deleting session records
+     * @param workflowEngine engine used to submit and track async workflow runs
+     * @param executionRepository repository for reading agent execution records
+     */
     public SessionRoutes(
             SessionRepository sessionRepository,
             WorkflowEngine workflowEngine,
@@ -49,6 +63,11 @@ public class SessionRoutes {
         this.executionRepository = executionRepository;
     }
 
+    /**
+     * Registers all session-related routes on the given router.
+     *
+     * @param router the Javalin routing API to register routes on
+     */
     public void register(JavalinDefaultRoutingApi router) {
 
         router.get("/sessions", ctx -> ctx.json(sessionRepository.findAll()));
@@ -99,14 +118,12 @@ public class SessionRoutes {
                         ctx.status(404).json(RouteHelper.notFound());
                         return;
                     }
-                    synchronized (activeSessions) {
-                        if (found.get().getStatus() == SessionStatus.RUNNING
-                                || activeSessions.contains(id)) {
-                            ctx.status(409).json(Map.of("status", "conflict", "sessionId", id));
-                            return;
-                        }
-                        sessionRepository.delete(id);
+                    if (found.get().getStatus() == SessionStatus.RUNNING
+                            || workflowEngine.isActive(id)) {
+                        ctx.status(409).json(Map.of("status", "conflict", "sessionId", id));
+                        return;
                     }
+                    sessionRepository.delete(id);
                     ctx.status(204);
                 });
 
@@ -118,15 +135,6 @@ public class SessionRoutes {
                     if (sessionOpt.isEmpty()) {
                         ctx.status(404).json(RouteHelper.notFound());
                         return;
-                    }
-                    Session session = sessionOpt.get();
-                    synchronized (activeSessions) {
-                        if (activeSessions.contains(sessionId)) {
-                            ctx.status(409)
-                                    .json(Map.of("status", "conflict", "sessionId", sessionId));
-                            return;
-                        }
-                        activeSessions.add(sessionId);
                     }
 
                     // Resolve input context from query param or body
@@ -146,8 +154,11 @@ public class SessionRoutes {
                     }
                     final String finalInput = inputContext;
 
-                    workflowEngine.runAsync(sessionId, finalInput);
-
+                    boolean accepted = workflowEngine.runAsync(sessionId, finalInput);
+                    if (!accepted) {
+                        ctx.status(409).json(Map.of("status", "conflict", "sessionId", sessionId));
+                        return;
+                    }
                     ctx.status(202).json(Map.of("status", "started", "sessionId", sessionId));
                 });
     }

@@ -53,9 +53,41 @@ public class StateManager {
      * Creates or updates the AgentExecution record for (sessionId, nodeId) with the given status.
      * Sets startedAt if transitioning to RUNNING; sets completedAt if transitioning to COMPLETED or
      * FAILED.
+     *
+     * <p>For terminal transitions (COMPLETED / FAILED) the record is re-loaded from the repository
+     * before the status update so that fields written by AgentRuntime — output, report,
+     * inputContext, agentDefinitionId — are not overwritten by the sparse instance that was placed
+     * in the in-memory index when status was first set to RUNNING. If the repository has no record
+     * (e.g. in tests), the existing in-memory instance is reused.
      */
     public void setStatus(String sessionId, String nodeId, AgentExecutionStatus status) {
         String key = sessionId + ":" + nodeId;
+
+        // For terminal transitions, re-fetch the enriched record that AgentRuntime
+        // persisted (with output, report, inputContext, agentDefinitionId), then apply
+        // only the terminal status and completedAt on top of it.  Fall back to the
+        // existing in-memory object when the repository has no persisted record.
+        if (status == AgentExecutionStatus.COMPLETED || status == AgentExecutionStatus.FAILED) {
+            AgentExecution cached = index.get(key);
+            AgentExecution fresh =
+                    executionRepository
+                            .findBySessionIdAndNodeId(sessionId, nodeId)
+                            .orElse(cached);
+            AgentExecution target;
+            if (fresh != null) {
+                target = fresh;
+            } else {
+                target = new AgentExecution();
+                target.setSessionId(sessionId);
+                target.setNodeId(nodeId);
+            }
+            target.setStatus(status);
+            target.setCompletedAt(System.currentTimeMillis());
+            index.put(key, target);
+            executionRepository.save(target);
+            return;
+        }
+
         AgentExecution exec =
                 index.compute(
                         key,
@@ -68,10 +100,6 @@ public class StateManager {
                             e.setStatus(status);
                             if (status == AgentExecutionStatus.RUNNING && e.getStartedAt() == 0) {
                                 e.setStartedAt(System.currentTimeMillis());
-                            }
-                            if (status == AgentExecutionStatus.COMPLETED
-                                    || status == AgentExecutionStatus.FAILED) {
-                                e.setCompletedAt(System.currentTimeMillis());
                             }
                             return e;
                         });

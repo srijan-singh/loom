@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.Call;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -114,7 +115,10 @@ public class GPTProvider implements LLMGateway {
                         .post(RequestBody.create(body, JSON_MEDIA))
                         .build();
 
-        try (Response response = httpClient.newCall(httpRequest).execute()) {
+        // Retain the Call so it can be cancelled at the socket level when the
+        // executing thread is interrupted (e.g. by a workflow timeout).
+        Call call = httpClient.newCall(httpRequest);
+        try (Response response = call.execute()) {
             if (!response.isSuccessful()) {
                 String errBody = response.body() != null ? response.body().string() : "(empty)";
                 log.warn("OpenAI HTTP error {}: {}", response.code(), sanitize(errBody));
@@ -131,6 +135,7 @@ public class GPTProvider implements LLMGateway {
             parseStream(responseBody, tokenConsumer);
         } catch (Exception e) {
             if (e instanceof InterruptedException || Thread.currentThread().isInterrupted()) {
+                call.cancel(); // forcibly close the socket so the connection is not held open
                 Thread.currentThread().interrupt();
                 return;
             }

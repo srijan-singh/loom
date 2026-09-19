@@ -351,6 +351,16 @@ public class AgentRuntime {
 
             String output = outputBuilder.toString();
 
+            // Guard against a cancellation that arrived after the last interrupt check
+            // above but before we persist COMPLETED or broadcast AGENT_REPORT_WRITTEN.
+            // Without this check a timed-out node could still write its result and fire
+            // the report event after WorkflowEngine has already activated ON_FAILURE
+            // successors.
+            if (Thread.currentThread().isInterrupted()) {
+                markExecutionFailed(execution, "cancelled");
+                return null;
+            }
+
             // 6. Persist execution as COMPLETED
             execution.setStatus(AgentExecutionStatus.COMPLETED);
             execution.setOutput(output);

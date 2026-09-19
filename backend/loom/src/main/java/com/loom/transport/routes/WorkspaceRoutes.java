@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.transport.routes;
 
 import io.javalin.router.JavalinDefaultRoutingApi;

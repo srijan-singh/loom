@@ -14,16 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.storage.repository;
 
 import com.loom.domain.AgentExecution;
 import com.loom.domain.AgentExecutionStatus;
 import com.loom.storage.DatabaseManager;
-
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.Optional;
 
 public class AgentExecutionRepository extends BaseRepository<AgentExecution> {
 
@@ -41,39 +40,62 @@ public class AgentExecutionRepository extends BaseRepository<AgentExecution> {
     // queries
     private static final String TABLE = "agent_executions";
 
-    private static final String SAVE  = upsert(
-            TABLE,
-            COL_ID,
-            COL_SESSION_ID,
-            COL_NODE_ID,
-            COL_AGENT_DEFINITION_ID,
-            COL_STATUS,
-            COL_INPUT_CONTEXT,
-            COL_OUTPUT,
-            COL_REPORT,
-            COL_STARTED_AT,
-            COL_COMPLETED_AT
-    );
+    private static final String FIND_BY_SESSION_ID_AND_NODE_ID =
+            "SELECT * FROM "
+                    + TABLE
+                    + " WHERE "
+                    + COL_SESSION_ID
+                    + " = ? AND "
+                    + COL_NODE_ID
+                    + " = ?";
+
+    private static final String SAVE =
+            upsert(
+                    TABLE,
+                    COL_ID,
+                    COL_SESSION_ID,
+                    COL_NODE_ID,
+                    COL_AGENT_DEFINITION_ID,
+                    COL_STATUS,
+                    COL_INPUT_CONTEXT,
+                    COL_OUTPUT,
+                    COL_REPORT,
+                    COL_STARTED_AT,
+                    COL_COMPLETED_AT);
 
     public AgentExecutionRepository(DatabaseManager db) {
         super(db, TABLE);
         setMapper(this::map);
     }
 
+    public Optional<AgentExecution> findBySessionIdAndNodeId(String sessionId, String nodeId) {
+        return db().queryOne(
+                        FIND_BY_SESSION_ID_AND_NODE_ID,
+                        ps -> {
+                            ps.setString(1, sessionId);
+                            ps.setString(2, nodeId);
+                        },
+                        this::map);
+    }
+
     public void save(AgentExecution exec) {
-        db().update(SAVE, ps -> {
-            ps.setString(1, exec.getId());
-            ps.setString(2, exec.getSessionId());
-            ps.setString(3, exec.getNodeId());
-            ps.setString(4, exec.getAgentDefinitionId());
-            ps.setString(5, exec.getStatus() != null ? exec.getStatus().name() : null);
-            ps.setString(6, exec.getInputContext());
-            ps.setString(7, exec.getOutput());
-            ps.setString(8, exec.getReport());
-            ps.setLong(9, exec.getStartedAt());
-            if (exec.getCompletedAt() != null) ps.setLong(10, exec.getCompletedAt());
-            else ps.setNull(10, Types.INTEGER);
-        });
+        db().update(
+                        SAVE,
+                        ps -> {
+                            ps.setString(1, exec.getId());
+                            ps.setString(2, exec.getSessionId());
+                            ps.setString(3, exec.getNodeId());
+                            ps.setString(4, exec.getAgentDefinitionId());
+                            ps.setString(
+                                    5, exec.getStatus() != null ? exec.getStatus().name() : null);
+                            ps.setString(6, exec.getInputContext());
+                            ps.setString(7, exec.getOutput());
+                            ps.setString(8, exec.getReport());
+                            ps.setLong(9, exec.getStartedAt());
+                            if (exec.getCompletedAt() != null)
+                                ps.setLong(10, exec.getCompletedAt());
+                            else ps.setNull(10, Types.INTEGER);
+                        });
     }
 
     private AgentExecution map(ResultSet rs) throws SQLException {

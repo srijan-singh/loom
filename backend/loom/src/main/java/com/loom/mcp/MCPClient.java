@@ -14,29 +14,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.mcp;
 
 import com.loom.llm.MCPToolDefinition;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Stub MCP client.
  *
- * <p>Real tool execution is out of scope for this ticket. This class is the
- * single place where future MCP tool dispatch will live; callers already use
- * it so the agentic loop compiles and runs end-to-end.
+ * <p>Real tool execution is out of scope for this ticket. This class is the single place where
+ * future MCP tool dispatch will live; callers already use it so the agentic loop compiles and runs
+ * end-to-end.
  */
 @Slf4j
 public class MCPClient {
 
     /**
-     * Returns the list of tools available on the given MCP connection.
-     * Stub implementation — real discovery comes in a later issue.
+     * Returns the list of tools available on the given MCP connection. Stub implementation — real
+     * discovery comes in a later issue.
      *
      * @param mcpConnectionId the MCP connection id
      * @return empty list (no tools available in stub mode)
@@ -49,7 +47,7 @@ public class MCPClient {
     /**
      * Executes a tool call and returns a plain-text result.
      *
-     * @param toolName  the tool identifier requested by the LLM
+     * @param toolName the tool identifier requested by the LLM
      * @param toolInput the arguments the LLM passed
      * @return a stub result string
      */

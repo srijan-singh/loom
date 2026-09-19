@@ -14,10 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.transport;
 
 import com.loom.engine.AgentRuntime;
+import com.loom.engine.GraphResolver;
+import com.loom.engine.WorkflowEngine;
 import com.loom.storage.repository.*;
 import com.loom.transport.routes.*;
 import io.javalin.Javalin;
@@ -28,51 +29,65 @@ public class LocalServer {
 
     private static final String EVENTS_ENDPOINT = "/events";
 
-    private final SSEManager             sseManager;
-    private final AgentRuntime           agentRuntime;
-    private final AgentRepository        agentRepository;
-    private final SkillRepository        skillRepository;
+    private final SSEManager sseManager;
+    private final AgentRuntime agentRuntime;
+    private final WorkflowEngine workflowEngine;
+    private final AgentRepository agentRepository;
+    private final SkillRepository skillRepository;
     private final MCPConnectionRepository mcpRepository;
-    private final SessionRepository      sessionRepository;
-    private final WorkflowRepository     workflowRepository;
-    private final WorkspaceRepository    workspaceRepository;
+    private final SessionRepository sessionRepository;
+    private final AgentExecutionRepository executionRepository;
+    private final WorkflowRepository workflowRepository;
+    private final WorkspaceRepository workspaceRepository;
+    private final GraphResolver graphResolver;
     private Javalin app;
 
-    public LocalServer(SSEManager sseManager,
-                       AgentRuntime agentRuntime,
-                       AgentRepository agentRepository,
-                       SkillRepository skillRepository,
-                       MCPConnectionRepository mcpRepository,
-                       SessionRepository sessionRepository,
-                       WorkflowRepository workflowRepository,
-                       WorkspaceRepository workspaceRepository) {
-        this.sseManager         = sseManager;
-        this.agentRuntime       = agentRuntime;
-        this.agentRepository    = agentRepository;
-        this.skillRepository    = skillRepository;
-        this.mcpRepository      = mcpRepository;
-        this.sessionRepository  = sessionRepository;
+    public LocalServer(
+            SSEManager sseManager,
+            AgentRuntime agentRuntime,
+            WorkflowEngine workflowEngine,
+            AgentRepository agentRepository,
+            SkillRepository skillRepository,
+            MCPConnectionRepository mcpRepository,
+            SessionRepository sessionRepository,
+            AgentExecutionRepository executionRepository,
+            WorkflowRepository workflowRepository,
+            WorkspaceRepository workspaceRepository,
+            GraphResolver graphResolver) {
+        this.sseManager = sseManager;
+        this.agentRuntime = agentRuntime;
+        this.workflowEngine = workflowEngine;
+        this.agentRepository = agentRepository;
+        this.skillRepository = skillRepository;
+        this.mcpRepository = mcpRepository;
+        this.sessionRepository = sessionRepository;
+        this.executionRepository = executionRepository;
         this.workflowRepository = workflowRepository;
         this.workspaceRepository = workspaceRepository;
+        this.graphResolver = graphResolver;
     }
 
     public void start(int port) {
-        AgentRoutes    agentRoutes    = new AgentRoutes(agentRepository);
-        WorkflowRoutes workflowRoutes = new WorkflowRoutes();
-        SkillRoutes    skillRoutes    = new SkillRoutes(skillRepository);
-        MCPRoutes      mcpRoutes      = new MCPRoutes(mcpRepository);
-        SessionRoutes  sessionRoutes  = new SessionRoutes(sessionRepository, agentRuntime);
+        AgentRoutes agentRoutes = new AgentRoutes(agentRepository);
+        WorkflowRoutes workflowRoutes = new WorkflowRoutes(workflowRepository, graphResolver);
+        SkillRoutes skillRoutes = new SkillRoutes(skillRepository);
+        MCPRoutes mcpRoutes = new MCPRoutes(mcpRepository);
+        SessionRoutes sessionRoutes =
+                new SessionRoutes(sessionRepository, workflowEngine, executionRepository);
         WorkspaceRoutes workspaceRoutes = new WorkspaceRoutes();
 
-        app = Javalin.create(config -> {
-            config.routes.sse(EVENTS_ENDPOINT, sseManager::attach);
-            agentRoutes.register(config.routes);
-            workflowRoutes.register(config.routes);
-            skillRoutes.register(config.routes);
-            mcpRoutes.register(config.routes);
-            sessionRoutes.register(config.routes);
-            workspaceRoutes.register(config.routes);
-        }).start(port);
+        app =
+                Javalin.create(
+                                config -> {
+                                    config.routes.sse(EVENTS_ENDPOINT, sseManager::attach);
+                                    agentRoutes.register(config.routes);
+                                    workflowRoutes.register(config.routes);
+                                    skillRoutes.register(config.routes);
+                                    mcpRoutes.register(config.routes);
+                                    sessionRoutes.register(config.routes);
+                                    workspaceRoutes.register(config.routes);
+                                })
+                        .start(port);
         log.info("Started Loom engine on port {}", port);
     }
 

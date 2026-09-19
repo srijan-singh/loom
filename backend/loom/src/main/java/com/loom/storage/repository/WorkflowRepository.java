@@ -14,12 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.storage.repository;
 
 import com.loom.domain.*;
 import com.loom.storage.DatabaseManager;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -40,16 +38,16 @@ public class WorkflowRepository extends BaseRepository<WorkflowDefinition> {
 
     private static final String FIND_BY_TYPE = "SELECT * FROM workflow_definitions WHERE type = ?";
 
-    private static final String SAVE = upsert(
-            TABLE,
-            COL_ID,
-            COL_NAME,
-            COL_TYPE,
-            COL_CREATED_BY,
-            COL_GRAPH,
-            COL_CREATED_AT,
-            COL_UPDATED_AT
-    );
+    private static final String SAVE =
+            upsert(
+                    TABLE,
+                    COL_ID,
+                    COL_NAME,
+                    COL_TYPE,
+                    COL_CREATED_BY,
+                    COL_GRAPH,
+                    COL_CREATED_AT,
+                    COL_UPDATED_AT);
 
     public WorkflowRepository(DatabaseManager db) {
         super(db, TABLE);
@@ -57,15 +55,18 @@ public class WorkflowRepository extends BaseRepository<WorkflowDefinition> {
     }
 
     public void save(WorkflowDefinition wf) {
-        db().update(SAVE, ps -> {
-            ps.setString(1, wf.getId());
-            ps.setString(2, wf.getName());
-            ps.setString(3, wf.getType() != null ? wf.getType().name() : null);
-            ps.setString(4, wf.getCreatedBy() != null ? wf.getCreatedBy().name() : null);
-            ps.setString(5, graphToJson(wf));
-            ps.setLong(6, wf.getCreatedAt());
-            ps.setLong(7, wf.getUpdatedAt());
-        });
+        db().update(
+                        SAVE,
+                        ps -> {
+                            ps.setString(1, wf.getId());
+                            ps.setString(2, wf.getName());
+                            ps.setString(3, wf.getType() != null ? wf.getType().name() : null);
+                            ps.setString(
+                                    4, wf.getCreatedBy() != null ? wf.getCreatedBy().name() : null);
+                            ps.setString(5, graphToJson(wf));
+                            ps.setLong(6, wf.getCreatedAt());
+                            ps.setLong(7, wf.getUpdatedAt());
+                        });
     }
 
     public List<WorkflowDefinition> findByType(WorkflowType type) {
@@ -103,10 +104,16 @@ public class WorkflowRepository extends BaseRepository<WorkflowDefinition> {
             Map<?, ?> graph = JSON.readValue(json, Map.class);
             Object nodes = graph.get("nodes");
             Object edges = graph.get("edges");
-            wf.setNodes(JSON.convertValue(nodes != null ? nodes : Collections.emptyList(),
-                    JSON.getTypeFactory().constructCollectionType(List.class, WorkflowNode.class)));
-            wf.setEdges(JSON.convertValue(edges != null ? edges : Collections.emptyList(),
-                    JSON.getTypeFactory().constructCollectionType(List.class, WorkflowEdge.class)));
+            wf.setNodes(
+                    JSON.convertValue(
+                            nodes != null ? nodes : Collections.emptyList(),
+                            JSON.getTypeFactory()
+                                    .constructCollectionType(List.class, WorkflowNode.class)));
+            wf.setEdges(
+                    JSON.convertValue(
+                            edges != null ? edges : Collections.emptyList(),
+                            JSON.getTypeFactory()
+                                    .constructCollectionType(List.class, WorkflowEdge.class)));
         } catch (Exception e) {
             throw new RuntimeException("Failed to deserialize workflow graph", e);
         }

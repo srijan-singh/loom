@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.storage;
 
 import java.io.BufferedReader;
@@ -28,16 +27,16 @@ import java.sql.Statement;
 import java.util.stream.Collectors;
 
 /**
- * Loads {@code src/test/resources/db/testFixtures.sql} into a
- * {@link DatabaseManager} instance.
+ * Loads {@code src/test/resources/db/testFixtures.sql} into a {@link DatabaseManager} instance.
  *
- * <p>All fixture rows use fixed string IDs (constants below) so every test
- * can reference known values without sharing mutable state.
+ * <p>All fixture rows use fixed string IDs (constants below) so every test can reference known
+ * values without sharing mutable state.
  *
  * <p>Usage in {@code @BeforeAll}:
+ *
  * <pre>{@code
- *   db = new DatabaseManager(dbFile.toAbsolutePath().toString());
- *   TestFixtures.load(db);
+ * db = new DatabaseManager(dbFile.toAbsolutePath().toString());
+ * TestFixtures.load(db);
  * }</pre>
  */
 public final class TestFixtures {
@@ -57,13 +56,13 @@ public final class TestFixtures {
     private TestFixtures() {}
 
     /**
-     * Reads {@code testFixtures.sql} from the test classpath and executes
-     * every statement against {@code db}.
+     * Reads {@code testFixtures.sql} from the test classpath and executes every statement against
+     * {@code db}.
      */
     public static void load(DatabaseManager db) {
         String sql = readResource();
         try (Connection conn = db.getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
             for (String s : sql.split(";")) {
                 String trimmed = s.replaceAll("(?m)^--[^\n]*\\n?", "").trim();
                 if (!trimmed.isEmpty()) {
@@ -80,8 +79,8 @@ public final class TestFixtures {
             if (is == null) {
                 throw new IllegalStateException("Test fixture not found: " + FIXTURES_PATH);
             }
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(is, StandardCharsets.UTF_8))) {
+            try (BufferedReader reader =
+                    new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
                 return reader.lines().collect(Collectors.joining("\n"));
             }
         } catch (IOException e) {

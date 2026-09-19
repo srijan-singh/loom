@@ -14,13 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.storage.repository;
 
 import com.loom.domain.Session;
 import com.loom.domain.SessionStatus;
 import com.loom.storage.DatabaseManager;
-
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
@@ -38,19 +36,20 @@ public class SessionRepository extends BaseRepository<Session> {
     // queries
     private static final String TABLE = "sessions";
 
-    private static final String FIND_BY_WORKSPACE_ID = "SELECT * FROM sessions WHERE workspace_id = ?";
+    private static final String FIND_BY_WORKSPACE_ID =
+            "SELECT * FROM sessions WHERE workspace_id = ?";
 
     private static final String FIND_BY_STATUS = "SELECT * FROM sessions WHERE status = ?";
 
-    private static final String SAVE = upsert(
-            TABLE,
-            COL_ID,
-            COL_WORKSPACE_ID,
-            COL_WORKFLOW_DEFINITION_ID,
-            COL_STATUS,
-            COL_STARTED_AT,
-            COL_COMPLETED_AT
-    );
+    private static final String SAVE =
+            upsert(
+                    TABLE,
+                    COL_ID,
+                    COL_WORKSPACE_ID,
+                    COL_WORKFLOW_DEFINITION_ID,
+                    COL_STATUS,
+                    COL_STARTED_AT,
+                    COL_COMPLETED_AT);
 
     public SessionRepository(DatabaseManager db) {
         super(db, TABLE);
@@ -58,15 +57,22 @@ public class SessionRepository extends BaseRepository<Session> {
     }
 
     public void save(Session session) {
-        db().update(SAVE, ps -> {
-            ps.setString(1, session.getId());
-            ps.setString(2, session.getWorkspaceId());
-            ps.setString(3, session.getWorkflowDefinitionId());
-            ps.setString(4, session.getStatus() != null ? session.getStatus().name() : null);
-            ps.setLong(5, session.getStartedAt());
-            if (session.getCompletedAt() != null) ps.setLong(6, session.getCompletedAt());
-            else ps.setNull(6, Types.BIGINT);
-        });
+        db().update(
+                        SAVE,
+                        ps -> {
+                            ps.setString(1, session.getId());
+                            ps.setString(2, session.getWorkspaceId());
+                            ps.setString(3, session.getWorkflowDefinitionId());
+                            ps.setString(
+                                    4,
+                                    session.getStatus() != null
+                                            ? session.getStatus().name()
+                                            : null);
+                            ps.setLong(5, session.getStartedAt());
+                            if (session.getCompletedAt() != null)
+                                ps.setLong(6, session.getCompletedAt());
+                            else ps.setNull(6, Types.BIGINT);
+                        });
     }
 
     public List<Session> findByWorkspaceId(String workspaceId) {

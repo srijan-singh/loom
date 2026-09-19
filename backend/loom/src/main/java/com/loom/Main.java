@@ -14,10 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom;
 
 import com.loom.engine.AgentRuntime;
+import com.loom.engine.GraphResolver;
+import com.loom.engine.StateManager;
+import com.loom.engine.WorkflowEngine;
 import com.loom.llm.LLMGateway;
 import com.loom.llm.LLMProviderFactory;
 import com.loom.mcp.MCPClient;
@@ -36,30 +38,58 @@ public class Main {
         // Storage
         DatabaseManager db = new DatabaseManager();
 
-        SkillRepository                skillRepo     = new SkillRepository(db);
-        MCPConnectionRepository        mcpRepo       = new MCPConnectionRepository(db);
-        AgentRepository                agentRepo     = new AgentRepository(db);
-        WorkflowRepository             workflowRepo  = new WorkflowRepository(db);
-        WorkspaceRepository            workspaceRepo = new WorkspaceRepository(db);
-        SessionRepository              sessionRepo   = new SessionRepository(db);
-        AgentExecutionRepository       execRepo      = new AgentExecutionRepository(db);
-        WorkspaceKnowledgeRepository   knowledgeRepo = new WorkspaceKnowledgeRepository(db);
+        SkillRepository skillRepo = new SkillRepository(db);
+        MCPConnectionRepository mcpRepo = new MCPConnectionRepository(db);
+        AgentRepository agentRepo = new AgentRepository(db);
+        WorkflowRepository workflowRepo = new WorkflowRepository(db);
+        WorkspaceRepository workspaceRepo = new WorkspaceRepository(db);
+        SessionRepository sessionRepo = new SessionRepository(db);
+        AgentExecutionRepository execRepo = new AgentExecutionRepository(db);
+        WorkspaceKnowledgeRepository knowledgeRepo = new WorkspaceKnowledgeRepository(db);
 
         // Engine
-        SSEManager  sseManager  = new SSEManager();
-        LLMGateway  llmGateway  = LLMProviderFactory.create();
-        MCPClient   mcpClient   = new MCPClient();
+        SSEManager sseManager = new SSEManager();
+        LLMGateway llmGateway = LLMProviderFactory.create();
+        MCPClient mcpClient = new MCPClient();
 
-        AgentRuntime agentRuntime = new AgentRuntime(
-                llmGateway, mcpClient, sseManager,
-                skillRepo, knowledgeRepo, execRepo,
-                sessionRepo, workflowRepo, agentRepo);
+        AgentRuntime agentRuntime =
+                new AgentRuntime(
+                        llmGateway,
+                        mcpClient,
+                        sseManager,
+                        skillRepo,
+                        knowledgeRepo,
+                        execRepo,
+                        sessionRepo,
+                        workflowRepo,
+                        agentRepo);
+
+        GraphResolver graphResolver = new GraphResolver();
+        StateManager stateManager = new StateManager(execRepo);
+        WorkflowEngine workflowEngine =
+                new WorkflowEngine(
+                        agentRuntime,
+                        stateManager,
+                        graphResolver,
+                        sessionRepo,
+                        workflowRepo,
+                        execRepo,
+                        sseManager);
 
         // Transport
-        LocalServer localServer = new LocalServer(
-                sseManager, agentRuntime,
-                agentRepo, skillRepo, mcpRepo,
-                sessionRepo, workflowRepo, workspaceRepo);
+        LocalServer localServer =
+                new LocalServer(
+                        sseManager,
+                        agentRuntime,
+                        workflowEngine,
+                        agentRepo,
+                        skillRepo,
+                        mcpRepo,
+                        sessionRepo,
+                        execRepo,
+                        workflowRepo,
+                        workspaceRepo,
+                        graphResolver);
 
         localServer.start(port);
         System.out.println("Loom engine listening on port " + port);

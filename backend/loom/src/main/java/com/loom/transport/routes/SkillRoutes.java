@@ -14,13 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.transport.routes;
 
 import com.loom.domain.Skill;
 import com.loom.storage.repository.SkillRepository;
 import io.javalin.router.JavalinDefaultRoutingApi;
-
 import java.util.Optional;
 
 public class SkillRoutes {
@@ -35,61 +33,69 @@ public class SkillRoutes {
 
         router.get("/skills", ctx -> ctx.json(skillRepository.findAll()));
 
-        router.get("/skills/{id}", ctx -> {
-            String id = ctx.pathParam("id");
-            Optional<Skill> found = skillRepository.findById(id);
-            if (found.isEmpty()) {
-                ctx.status(404).json(RouteHelper.notFound());
-            } else {
-                ctx.json(found.get());
-            }
-        });
+        router.get(
+                "/skills/{id}",
+                ctx -> {
+                    String id = ctx.pathParam("id");
+                    Optional<Skill> found = skillRepository.findById(id);
+                    if (found.isEmpty()) {
+                        ctx.status(404).json(RouteHelper.notFound());
+                    } else {
+                        ctx.json(found.get());
+                    }
+                });
 
-        router.post("/skills", ctx -> {
-            Skill body = ctx.bodyAsClass(Skill.class);
-            if (body.getName() == null || body.getName().isBlank()) {
-                ctx.status(400).json(RouteHelper.error("name is required"));
-                return;
-            }
-            long now = System.currentTimeMillis();
-            Skill created = new Skill();
-            created.setName(body.getName());
-            created.setDescription(body.getDescription());
-            created.setContent(body.getContent());
-            created.setTags(body.getTags());
-            created.setCreatedAt(now);
-            created.setUpdatedAt(now);
-            skillRepository.save(created);
-            ctx.status(201).json(created);
-        });
+        router.post(
+                "/skills",
+                ctx -> {
+                    Skill body = ctx.bodyAsClass(Skill.class);
+                    if (body.getName() == null || body.getName().isBlank()) {
+                        ctx.status(400).json(RouteHelper.error("name is required"));
+                        return;
+                    }
+                    long now = System.currentTimeMillis();
+                    Skill created = new Skill();
+                    created.setName(body.getName());
+                    created.setDescription(body.getDescription());
+                    created.setContent(body.getContent());
+                    created.setTags(body.getTags());
+                    created.setCreatedAt(now);
+                    created.setUpdatedAt(now);
+                    skillRepository.save(created);
+                    ctx.status(201).json(created);
+                });
 
-        router.put("/skills/{id}", ctx -> {
-            String id = ctx.pathParam("id");
-            Optional<Skill> existing = skillRepository.findById(id);
-            if (existing.isEmpty()) {
-                ctx.status(404).json(RouteHelper.notFound());
-                return;
-            }
-            Skill body = ctx.bodyAsClass(Skill.class);
-            if (body.getName() == null || body.getName().isBlank()) {
-                ctx.status(400).json(RouteHelper.error("name is required"));
-                return;
-            }
-            body.setId(id);
-            body.setCreatedAt(existing.get().getCreatedAt());
-            body.setUpdatedAt(System.currentTimeMillis());
-            skillRepository.save(body);
-            ctx.json(skillRepository.findById(id).get());
-        });
+        router.put(
+                "/skills/{id}",
+                ctx -> {
+                    String id = ctx.pathParam("id");
+                    Optional<Skill> existing = skillRepository.findById(id);
+                    if (existing.isEmpty()) {
+                        ctx.status(404).json(RouteHelper.notFound());
+                        return;
+                    }
+                    Skill body = ctx.bodyAsClass(Skill.class);
+                    if (body.getName() == null || body.getName().isBlank()) {
+                        ctx.status(400).json(RouteHelper.error("name is required"));
+                        return;
+                    }
+                    body.setId(id);
+                    body.setCreatedAt(existing.get().getCreatedAt());
+                    body.setUpdatedAt(System.currentTimeMillis());
+                    skillRepository.save(body);
+                    ctx.json(skillRepository.findById(id).get());
+                });
 
-        router.delete("/skills/{id}", ctx -> {
-            String id = ctx.pathParam("id");
-            if (skillRepository.findById(id).isEmpty()) {
-                ctx.status(404).json(RouteHelper.notFound());
-                return;
-            }
-            skillRepository.delete(id);
-            ctx.status(204);
-        });
+        router.delete(
+                "/skills/{id}",
+                ctx -> {
+                    String id = ctx.pathParam("id");
+                    if (skillRepository.findById(id).isEmpty()) {
+                        ctx.status(404).json(RouteHelper.notFound());
+                        return;
+                    }
+                    skillRepository.delete(id);
+                    ctx.status(204);
+                });
     }
 }

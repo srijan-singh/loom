@@ -14,14 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.transport.routes;
 
 import com.loom.domain.MCPConnection;
 import com.loom.domain.MCPStatus;
 import com.loom.storage.repository.MCPConnectionRepository;
 import io.javalin.router.JavalinDefaultRoutingApi;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -36,43 +34,51 @@ public class MCPRoutes {
 
     public void register(JavalinDefaultRoutingApi router) {
 
-        router.get("/mcps", ctx -> {
-            List<MCPConnectionView> views = mcpRepository.findAll().stream()
-                    .map(MCPConnectionView::of)
-                    .collect(Collectors.toList());
-            ctx.json(views);
-        });
+        router.get(
+                "/mcps",
+                ctx -> {
+                    List<MCPConnectionView> views =
+                            mcpRepository.findAll().stream()
+                                    .map(MCPConnectionView::of)
+                                    .collect(Collectors.toList());
+                    ctx.json(views);
+                });
 
-        router.post("/mcps", ctx -> {
-            MCPConnection body = ctx.bodyAsClass(MCPConnection.class);
-            if (body.getName() == null || body.getName().isBlank()) {
-                ctx.status(400).json(RouteHelper.error("name is required"));
-                return;
-            }
-            if (body.getType() == null || body.getType().isBlank()) {
-                ctx.status(400).json(RouteHelper.error("type is required"));
-                return;
-            }
-            MCPConnection created = new MCPConnection();
-            created.setName(body.getName());
-            created.setType(body.getType());
-            created.setConfig(body.getConfig());
-            created.setStatus(body.getStatus() != null ? body.getStatus() : MCPStatus.DISCONNECTED);
-            created.setCreatedAt(System.currentTimeMillis());
-            mcpRepository.save(created);
-            ctx.status(201).json(MCPConnectionView.of(created));
-        });
+        router.post(
+                "/mcps",
+                ctx -> {
+                    MCPConnection body = ctx.bodyAsClass(MCPConnection.class);
+                    if (body.getName() == null || body.getName().isBlank()) {
+                        ctx.status(400).json(RouteHelper.error("name is required"));
+                        return;
+                    }
+                    if (body.getType() == null || body.getType().isBlank()) {
+                        ctx.status(400).json(RouteHelper.error("type is required"));
+                        return;
+                    }
+                    MCPConnection created = new MCPConnection();
+                    created.setName(body.getName());
+                    created.setType(body.getType());
+                    created.setConfig(body.getConfig());
+                    created.setStatus(
+                            body.getStatus() != null ? body.getStatus() : MCPStatus.DISCONNECTED);
+                    created.setCreatedAt(System.currentTimeMillis());
+                    mcpRepository.save(created);
+                    ctx.status(201).json(MCPConnectionView.of(created));
+                });
 
-        router.delete("/mcps/{id}", ctx -> {
-            String id = ctx.pathParam("id");
-            Optional<MCPConnection> found = mcpRepository.findById(id);
-            if (found.isEmpty()) {
-                ctx.status(404).json(RouteHelper.notFound());
-                return;
-            }
-            mcpRepository.delete(id);
-            ctx.status(204);
-        });
+        router.delete(
+                "/mcps/{id}",
+                ctx -> {
+                    String id = ctx.pathParam("id");
+                    Optional<MCPConnection> found = mcpRepository.findById(id);
+                    if (found.isEmpty()) {
+                        ctx.status(404).json(RouteHelper.notFound());
+                        return;
+                    }
+                    mcpRepository.delete(id);
+                    ctx.status(204);
+                });
     }
 
     /** Public projection of {@link MCPConnection} that omits the sensitive {@code config} field. */
@@ -84,10 +90,10 @@ public class MCPRoutes {
         public final long createdAt;
 
         private MCPConnectionView(MCPConnection c) {
-            this.id        = c.getId();
-            this.name      = c.getName();
-            this.type      = c.getType();
-            this.status    = c.getStatus();
+            this.id = c.getId();
+            this.name = c.getName();
+            this.type = c.getType();
+            this.status = c.getStatus();
             this.createdAt = c.getCreatedAt();
         }
 

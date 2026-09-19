@@ -14,20 +14,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.loom.transport.routes;
+package com.loom.engine;
 
-import java.util.Map;
+import static org.assertj.core.api.Assertions.assertThat;
 
-/** Shared error-body factories used by all route handlers. */
-final class RouteHelper {
+import org.junit.jupiter.api.Test;
 
-    private RouteHelper() {}
+class InvalidWorkflowExceptionTest {
 
-    static Map<String, String> notFound() {
-        return Map.of("error", "not_found");
+    @Test
+    void constructorStoresMessage() {
+        InvalidWorkflowException ex = new InvalidWorkflowException("cycle detected");
+        assertThat(ex.getMessage()).isEqualTo("cycle detected");
     }
 
-    static Map<String, String> error(String message) {
-        return Map.of("error", message);
+    @Test
+    void isChecked() {
+        assertThat(Exception.class.isAssignableFrom(InvalidWorkflowException.class)).isTrue();
+        assertThat(RuntimeException.class.isAssignableFrom(InvalidWorkflowException.class))
+                .isFalse();
     }
 }

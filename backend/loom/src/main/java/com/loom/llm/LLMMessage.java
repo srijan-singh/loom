@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.llm;
 
 import lombok.AllArgsConstructor;
@@ -22,8 +21,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * A single prior-turn message in a multi-turn conversation.
- * Role is either "user" or "assistant".
+ * A single prior-turn message in a multi-turn conversation. Role is either "user" or "assistant".
  */
 @Data
 @NoArgsConstructor
@@ -31,5 +29,6 @@ import lombok.NoArgsConstructor;
 public class LLMMessage {
     /** "user" or "assistant" */
     private String role;
+
     private String content;
 }

@@ -14,21 +14,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.transport;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loom.domain.SessionStatus;
 import com.loom.engine.AgentRuntime;
+import com.loom.engine.GraphResolver;
+import com.loom.engine.StateManager;
+import com.loom.engine.WorkflowEngine;
 import com.loom.llm.MockLLMProvider;
 import com.loom.mcp.MCPClient;
 import com.loom.storage.DatabaseManager;
 import com.loom.storage.TestFixtures;
 import com.loom.storage.repository.*;
 import com.loom.transport.util.TestSSEClient;
-import org.junit.jupiter.api.*;
-
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.URI;
@@ -39,15 +41,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.*;
 
 /**
  * End-to-end BVT covering:
+ *
  * <ul>
- *   <li>CRUD routes for Skills, Agents, MCPs, Sessions</li>
- *   <li>Full execution loop via POST /sessions/{id}/run using MockLLMProvider</li>
- *   <li>SSE event ordering: SESSION_STARTED → AGENT_TOKEN(s) → AGENT_REPORT_WRITTEN → SESSION_COMPLETED</li>
+ *   <li>CRUD routes for Skills, Agents, MCPs, Sessions
+ *   <li>Full execution loop via POST /sessions/{id}/run using MockLLMProvider
+ *   <li>SSE event ordering: SESSION_STARTED → AGENT_TOKEN(s) → AGENT_REPORT_WRITTEN →
+ *       SESSION_COMPLETED
  * </ul>
  */
 @DisplayName("Routes + AgentRuntime BVT")
@@ -78,25 +81,54 @@ class RoutesBVT {
         DatabaseManager db = new DatabaseManager(dbFile.toAbsolutePath().toString());
         TestFixtures.load(db);
 
-        SkillRepository              skillRepo     = new SkillRepository(db);
-        MCPConnectionRepository      mcpRepo       = new MCPConnectionRepository(db);
-        AgentRepository              agentRepo     = new AgentRepository(db);
-        WorkflowRepository           workflowRepo  = new WorkflowRepository(db);
-        WorkspaceRepository          workspaceRepo = new WorkspaceRepository(db);
-        sessionRepo   = new SessionRepository(db);
-        execRepo      = new AgentExecutionRepository(db);
+        SkillRepository skillRepo = new SkillRepository(db);
+        MCPConnectionRepository mcpRepo = new MCPConnectionRepository(db);
+        AgentRepository agentRepo = new AgentRepository(db);
+        WorkflowRepository workflowRepo = new WorkflowRepository(db);
+        WorkspaceRepository workspaceRepo = new WorkspaceRepository(db);
+        sessionRepo = new SessionRepository(db);
+        execRepo = new AgentExecutionRepository(db);
         knowledgeRepo = new WorkspaceKnowledgeRepository(db);
 
         sseManager = new SSEManager();
         MCPClient mcpClient = new MCPClient();
-        AgentRuntime agentRuntime = new AgentRuntime(
-                new MockLLMProvider(), mcpClient, sseManager,
-                skillRepo, knowledgeRepo, execRepo,
-                sessionRepo, workflowRepo, agentRepo);
+        AgentRuntime agentRuntime =
+                new AgentRuntime(
+                        new MockLLMProvider(),
+                        mcpClient,
+                        sseManager,
+                        skillRepo,
+                        knowledgeRepo,
+                        execRepo,
+                        sessionRepo,
+                        workflowRepo,
+                        agentRepo);
 
-        server = new LocalServer(sseManager, agentRuntime,
-                agentRepo, skillRepo, mcpRepo,
-                sessionRepo, workflowRepo, workspaceRepo);
+        GraphResolver graphResolver = new GraphResolver();
+        StateManager stateManager = new StateManager(execRepo);
+        WorkflowEngine workflowEngine =
+                new WorkflowEngine(
+                        agentRuntime,
+                        stateManager,
+                        graphResolver,
+                        sessionRepo,
+                        workflowRepo,
+                        execRepo,
+                        sseManager);
+
+        server =
+                new LocalServer(
+                        sseManager,
+                        agentRuntime,
+                        workflowEngine,
+                        agentRepo,
+                        skillRepo,
+                        mcpRepo,
+                        sessionRepo,
+                        execRepo,
+                        workflowRepo,
+                        workspaceRepo,
+                        graphResolver);
         server.start(port);
 
         http = HttpClient.newHttpClient();
@@ -111,32 +143,40 @@ class RoutesBVT {
     // ── helper ─────────────────────────────────────────────────────────────────
 
     private HttpResponse<String> get(String path) throws Exception {
-        return http.send(HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + port + path))
-                .GET().build(),
+        return http.send(
+                HttpRequest.newBuilder()
+                        .uri(URI.create("http://localhost:" + port + path))
+                        .GET()
+                        .build(),
                 HttpResponse.BodyHandlers.ofString());
     }
 
     private HttpResponse<String> post(String path, String body) throws Exception {
-        return http.send(HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + port + path))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+        return http.send(
+                HttpRequest.newBuilder()
+                        .uri(URI.create("http://localhost:" + port + path))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(body))
+                        .build(),
                 HttpResponse.BodyHandlers.ofString());
     }
 
     private HttpResponse<String> put(String path, String body) throws Exception {
-        return http.send(HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + port + path))
-                .header("Content-Type", "application/json")
-                .PUT(HttpRequest.BodyPublishers.ofString(body)).build(),
+        return http.send(
+                HttpRequest.newBuilder()
+                        .uri(URI.create("http://localhost:" + port + path))
+                        .header("Content-Type", "application/json")
+                        .PUT(HttpRequest.BodyPublishers.ofString(body))
+                        .build(),
                 HttpResponse.BodyHandlers.ofString());
     }
 
     private HttpResponse<String> delete(String path) throws Exception {
-        return http.send(HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + port + path))
-                .DELETE().build(),
+        return http.send(
+                HttpRequest.newBuilder()
+                        .uri(URI.create("http://localhost:" + port + path))
+                        .DELETE()
+                        .build(),
                 HttpResponse.BodyHandlers.ofString());
     }
 
@@ -157,8 +197,10 @@ class RoutesBVT {
     @DisplayName("POST /skills creates skill; GET /skills/{id} returns it; DELETE removes it")
     void skillCrud() throws Exception {
         // create
-        HttpResponse<String> create = post("/skills",
-                "{\"name\":\"Test Skill\",\"description\":\"desc\",\"content\":\"# Test\"}");
+        HttpResponse<String> create =
+                post(
+                        "/skills",
+                        "{\"name\":\"Test Skill\",\"description\":\"desc\",\"content\":\"# Test\"}");
         assertEquals(201, create.statusCode());
         JsonNode created = MAPPER.readTree(create.body());
         String id = created.path("id").asText();
@@ -171,8 +213,8 @@ class RoutesBVT {
         assertEquals("Test Skill", MAPPER.readTree(found.body()).path("name").asText());
 
         // PUT update
-        HttpResponse<String> updated = put("/skills/" + id,
-                "{\"name\":\"Updated Skill\",\"description\":\"new desc\"}");
+        HttpResponse<String> updated =
+                put("/skills/" + id, "{\"name\":\"Updated Skill\",\"description\":\"new desc\"}");
         assertEquals(200, updated.statusCode());
         assertEquals("Updated Skill", MAPPER.readTree(updated.body()).path("name").asText());
 
@@ -210,8 +252,8 @@ class RoutesBVT {
     @DisplayName("POST /agents creates agent; GET /agents/{id} returns it; DELETE removes it")
     void agentCrud() throws Exception {
         // create
-        HttpResponse<String> create = post("/agents",
-                "{\"name\":\"My Agent\",\"roleDescription\":\"A helpful agent\"}");
+        HttpResponse<String> create =
+                post("/agents", "{\"name\":\"My Agent\",\"roleDescription\":\"A helpful agent\"}");
         assertEquals(201, create.statusCode());
         JsonNode created = MAPPER.readTree(create.body());
         String id = created.path("id").asText();
@@ -222,8 +264,10 @@ class RoutesBVT {
         assertEquals(200, get("/agents/" + id).statusCode());
 
         // PUT update
-        HttpResponse<String> updated = put("/agents/" + id,
-                "{\"name\":\"Updated Agent\",\"roleDescription\":\"Updated role\"}");
+        HttpResponse<String> updated =
+                put(
+                        "/agents/" + id,
+                        "{\"name\":\"Updated Agent\",\"roleDescription\":\"Updated role\"}");
         assertEquals(200, updated.statusCode());
         assertEquals("Updated Agent", MAPPER.readTree(updated.body()).path("name").asText());
 
@@ -252,8 +296,7 @@ class RoutesBVT {
         HttpResponse<String> list = get("/mcps");
         assertEquals(200, list.statusCode());
 
-        HttpResponse<String> create = post("/mcps",
-                "{\"name\":\"Test MCP\",\"type\":\"stdio\"}");
+        HttpResponse<String> create = post("/mcps", "{\"name\":\"Test MCP\",\"type\":\"stdio\"}");
         assertEquals(201, create.statusCode());
         String id = MAPPER.readTree(create.body()).path("id").asText();
         assertFalse(id.isBlank());
@@ -268,8 +311,10 @@ class RoutesBVT {
     @Order(8)
     @DisplayName("POST /sessions creates session with CREATED status")
     void sessionCreate() throws Exception {
-        HttpResponse<String> res = post("/sessions",
-                "{\"workspaceId\":\"ws-research\",\"workflowDefinitionId\":\"wf-research-pipeline\"}");
+        HttpResponse<String> res =
+                post(
+                        "/sessions",
+                        "{\"workspaceId\":\"ws-research\",\"workflowDefinitionId\":\"wf-research-pipeline\"}");
         assertEquals(201, res.statusCode());
         JsonNode body = MAPPER.readTree(res.body());
         assertFalse(body.path("id").asText().isBlank());
@@ -278,7 +323,8 @@ class RoutesBVT {
 
     @Test
     @Order(9)
-    @DisplayName("POST /sessions/{id}/run executes and produces COMPLETED session, execution row, and knowledge row")
+    @DisplayName(
+            "POST /sessions/{id}/run executes and produces COMPLETED session, execution row, and knowledge row")
     void sessionRun() throws Exception {
         // 1. Subscribe SSE before triggering run
         TestSSEClient sse = new TestSSEClient(20, port);
@@ -287,14 +333,16 @@ class RoutesBVT {
         Thread.sleep(200);
 
         // 2. Create session pointing at the fixture workflow
-        HttpResponse<String> createRes = post("/sessions",
-                "{\"workspaceId\":\"ws-research\",\"workflowDefinitionId\":\"wf-research-pipeline\"}");
+        HttpResponse<String> createRes =
+                post(
+                        "/sessions",
+                        "{\"workspaceId\":\"ws-research\",\"workflowDefinitionId\":\"wf-research-pipeline\"}");
         assertEquals(201, createRes.statusCode());
         String sessionId = MAPPER.readTree(createRes.body()).path("id").asText();
 
         // 3. Run
-        HttpResponse<String> runRes = post("/sessions/" + sessionId + "/run",
-                "\"Research the latest AI trends\"");
+        HttpResponse<String> runRes =
+                post("/sessions/" + sessionId + "/run", "\"Research the latest AI trends\"");
         assertEquals(202, runRes.statusCode());
 
         // 4. Wait for SESSION_COMPLETED event (up to 10 s)
@@ -320,41 +368,52 @@ class RoutesBVT {
         for (String e : events) {
             eventTypes.add(MAPPER.readTree(e).path("eventType").asText());
         }
-        assertTrue(eventTypes.contains("SESSION_STARTED"),        "SESSION_STARTED missing");
-        assertTrue(eventTypes.contains("AGENT_TOKEN"),            "AGENT_TOKEN missing");
-        assertTrue(eventTypes.contains("AGENT_REPORT_WRITTEN"),   "AGENT_REPORT_WRITTEN missing");
-        assertTrue(eventTypes.contains("SESSION_COMPLETED"),      "SESSION_COMPLETED missing");
+        assertTrue(eventTypes.contains("SESSION_STARTED"), "SESSION_STARTED missing");
+        assertTrue(eventTypes.contains("AGENT_TOKEN"), "AGENT_TOKEN missing");
+        assertTrue(eventTypes.contains("AGENT_REPORT_WRITTEN"), "AGENT_REPORT_WRITTEN missing");
+        assertTrue(eventTypes.contains("SESSION_COMPLETED"), "SESSION_COMPLETED missing");
 
         // Ordering: SESSION_STARTED first
-        assertEquals("SESSION_STARTED", eventTypes.get(0),
-                "SESSION_STARTED must be the first event");
+        assertEquals(
+                "SESSION_STARTED", eventTypes.get(0), "SESSION_STARTED must be the first event");
 
         // 6. Verify session status in DB
         Thread.sleep(200); // let async thread finish writing
         var session = sessionRepo.findById(sessionId);
         assertTrue(session.isPresent());
-        assertEquals(SessionStatus.COMPLETED, session.get().getStatus(),
+        assertEquals(
+                SessionStatus.COMPLETED,
+                session.get().getStatus(),
                 "Session must be COMPLETED in DB");
 
         // 7. Verify at least one agent_execution row with COMPLETED status
-        boolean hasCompletedExec = execRepo.findAll().stream()
-                .anyMatch(e -> sessionId.equals(e.getSessionId())
-                        && com.loom.domain.AgentExecutionStatus.COMPLETED == e.getStatus());
+        boolean hasCompletedExec =
+                execRepo.findAll().stream()
+                        .anyMatch(
+                                e ->
+                                        sessionId.equals(e.getSessionId())
+                                                && com.loom.domain.AgentExecutionStatus.COMPLETED
+                                                        == e.getStatus());
         assertTrue(hasCompletedExec, "An agent_execution row with COMPLETED status must exist");
 
         // 8. Verify workspace_knowledge row was created
-        boolean hasKnowledge = knowledgeRepo.findAll().stream()
-                .anyMatch(k -> "ws-research".equals(k.getWorkspaceId())
-                        && k.getContent() != null && !k.getContent().isBlank());
-        assertTrue(hasKnowledge, "A workspace_knowledge row must exist for the session's workspace");
+        boolean hasKnowledge =
+                knowledgeRepo.findAll().stream()
+                        .anyMatch(
+                                k ->
+                                        "ws-research".equals(k.getWorkspaceId())
+                                                && k.getContent() != null
+                                                && !k.getContent().isBlank());
+        assertTrue(
+                hasKnowledge, "A workspace_knowledge row must exist for the session's workspace");
     }
 
     @Test
     @Order(10)
     @DisplayName("POST /sessions with missing workspaceId returns 400")
     void sessionCreateValidation() throws Exception {
-        HttpResponse<String> res = post("/sessions",
-                "{\"workflowDefinitionId\":\"wf-research-pipeline\"}");
+        HttpResponse<String> res =
+                post("/sessions", "{\"workflowDefinitionId\":\"wf-research-pipeline\"}");
         assertEquals(400, res.statusCode());
         assertEquals("workspaceId is required", MAPPER.readTree(res.body()).path("error").asText());
     }

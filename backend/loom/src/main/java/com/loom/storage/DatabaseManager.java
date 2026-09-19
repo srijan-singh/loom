@@ -14,10 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.loom.storage;
-
-import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -29,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class DatabaseManager {
@@ -80,12 +78,12 @@ public class DatabaseManager {
     /**
      * Executes an INSERT / UPDATE / DELETE statement.
      *
-     * @param sql    parameterised SQL string
+     * @param sql parameterised SQL string
      * @param binder lambda that binds {@code ?} parameters onto the statement
      */
     public void update(String sql, ParamBinder binder) {
         try (Connection conn = getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             binder.bind(ps);
             ps.executeUpdate();
         } catch (SQLException e) {
@@ -96,14 +94,14 @@ public class DatabaseManager {
     /**
      * Executes a SELECT that returns at most one row.
      *
-     * @param sql    parameterised SQL string
+     * @param sql parameterised SQL string
      * @param binder lambda that binds {@code ?} parameters
      * @param mapper lambda that converts a {@link ResultSet} row to {@code T}
      * @return the mapped value, or {@link Optional#empty()} if no row matched
      */
     public <T> Optional<T> queryOne(String sql, ParamBinder binder, RowMapper<T> mapper) {
         try (Connection conn = getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             binder.bind(ps);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return Optional.of(mapper.map(rs));
@@ -117,7 +115,7 @@ public class DatabaseManager {
     /**
      * Executes a SELECT that returns zero or more rows.
      *
-     * @param sql    parameterised SQL string
+     * @param sql parameterised SQL string
      * @param binder lambda that binds {@code ?} parameters
      * @param mapper lambda that converts each {@link ResultSet} row to {@code T}
      * @return list of mapped values (never {@code null})
@@ -125,7 +123,7 @@ public class DatabaseManager {
     public <T> List<T> queryList(String sql, ParamBinder binder, RowMapper<T> mapper) {
         List<T> result = new ArrayList<>();
         try (Connection conn = getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             binder.bind(ps);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) result.add(mapper.map(rs));
@@ -138,7 +136,7 @@ public class DatabaseManager {
 
     private void initSchema() {
         try (Connection conn = getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
 
             String schemaSQL = loadSchemaFromResource();
 
@@ -171,8 +169,8 @@ public class DatabaseManager {
             if (is == null) {
                 throw new IOException("Schema resource not found: " + SCHEMA_PATH);
             }
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(is, StandardCharsets.UTF_8))) {
+            try (BufferedReader reader =
+                    new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
                 return reader.lines().collect(Collectors.joining("\n"));
             }
         }

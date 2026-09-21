@@ -16,12 +16,13 @@
  */
 package com.loom.transport.util;
 
+import okhttp3.*;
+
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import okhttp3.*;
 
 /**
  * Minimal SSE test client backed by OkHttp. Uses a background thread with a synchronous call so we

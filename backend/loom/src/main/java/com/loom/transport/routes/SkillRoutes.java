@@ -16,10 +16,12 @@
  */
 package com.loom.transport.routes;
 
+import io.javalin.router.JavalinDefaultRoutingApi;
+
+import java.util.Optional;
+
 import com.loom.domain.Skill;
 import com.loom.storage.repository.SkillRepository;
-import io.javalin.router.JavalinDefaultRoutingApi;
-import java.util.Optional;
 
 public class SkillRoutes {
 

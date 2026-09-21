@@ -16,12 +16,15 @@
  */
 package com.loom.llm;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.loom.LoomEnv;
+import lombok.extern.slf4j.Slf4j;
+import okhttp3.Call;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -31,14 +34,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import lombok.extern.slf4j.Slf4j;
-import okhttp3.Call;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
-import okhttp3.ResponseBody;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.loom.LoomEnv;
 
 /**
  * Streams responses from OpenAI's Chat Completions API ({@code /v1/chat/completions}).
@@ -307,6 +309,7 @@ public class GPTProvider implements LLMGateway {
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
+    @SuppressWarnings("checkstyle:VisibilityModifier")
     private static class ToolCallAccumulator {
         final StringBuilder name = new StringBuilder();
         final StringBuilder args = new StringBuilder();

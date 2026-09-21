@@ -16,20 +16,25 @@
  */
 package com.loom.engine;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.loom.event.EventType;
-import com.loom.event.WorkflowEvent;
-import com.loom.llm.LLMGateway;
-import com.loom.llm.LLMRequest;
-import com.loom.llm.LLMResponse;
-import com.loom.mcp.MCPClient;
-import com.loom.transport.SSEManager;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import lombok.extern.slf4j.Slf4j;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loom.event.EventType;
+import com.loom.event.WorkflowEvent;
+import com.loom.llm.LLMGateway;
+import com.loom.llm.LLMMessage;
+import com.loom.llm.LLMRequest;
+import com.loom.llm.LLMResponse;
+import com.loom.mcp.MCPClient;
+import com.loom.transport.SSEManager;
 
 /**
  * Drives a single-agent LLM loop for a session:
@@ -238,21 +243,17 @@ public class AgentRunner {
      * the LLM can continue reasoning.
      */
     private LLMRequest appendToolResult(LLMRequest prev, String toolName, String toolResult) {
-        java.util.List<com.loom.llm.LLMMessage> history =
-                prev.getHistory() != null
-                        ? new java.util.ArrayList<>(prev.getHistory())
-                        : new java.util.ArrayList<>();
+        List<LLMMessage> history =
+                prev.getHistory() != null ? new ArrayList<>(prev.getHistory()) : new ArrayList<>();
 
         // Original user prompt as user turn (if history was empty before)
         if (history.isEmpty()) {
-            history.add(new com.loom.llm.LLMMessage("user", prev.getUserPrompt()));
+            history.add(new LLMMessage("user", prev.getUserPrompt()));
         }
         // Assistant "called tool X" placeholder
-        history.add(new com.loom.llm.LLMMessage("assistant", "[Called tool: " + toolName + "]"));
+        history.add(new LLMMessage("assistant", "[Called tool: " + toolName + "]"));
         // Tool result injected as a user turn
-        history.add(
-                new com.loom.llm.LLMMessage(
-                        "user", "Tool result for " + toolName + ": " + toolResult));
+        history.add(new LLMMessage("user", "Tool result for " + toolName + ": " + toolResult));
 
         return LLMRequest.builder()
                 .model(prev.getModel())

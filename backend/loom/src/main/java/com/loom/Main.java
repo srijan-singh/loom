@@ -16,6 +16,8 @@
  */
 package com.loom;
 
+import lombok.extern.slf4j.Slf4j;
+
 import com.loom.engine.AgentRuntime;
 import com.loom.engine.GraphResolver;
 import com.loom.engine.StateManager;
@@ -24,12 +26,20 @@ import com.loom.llm.LLMGateway;
 import com.loom.llm.LLMProviderFactory;
 import com.loom.mcp.MCPClient;
 import com.loom.storage.DatabaseManager;
-import com.loom.storage.repository.*;
+import com.loom.storage.repository.AgentExecutionRepository;
+import com.loom.storage.repository.AgentRepository;
+import com.loom.storage.repository.MCPConnectionRepository;
+import com.loom.storage.repository.SessionRepository;
+import com.loom.storage.repository.SkillRepository;
+import com.loom.storage.repository.WorkflowRepository;
+import com.loom.storage.repository.WorkspaceKnowledgeRepository;
+import com.loom.storage.repository.WorkspaceRepository;
 import com.loom.transport.LocalServer;
 import com.loom.transport.SSEManager;
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+// Main is the composition root: it instantiates every repository by design.
+@SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public class Main {
     public static void main(String[] args) {
         int port = LoomEnv.LOOM_PORT.getInt();

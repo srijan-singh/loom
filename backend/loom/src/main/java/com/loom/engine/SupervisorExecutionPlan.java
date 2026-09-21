@@ -16,16 +16,20 @@
  */
 package com.loom.engine;
 
-import com.loom.domain.WorkflowEdge;
-import com.loom.domain.WorkflowNode;
+import lombok.Getter;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import com.loom.domain.WorkflowEdge;
+import com.loom.domain.WorkflowNode;
 
 /**
  * Extends {@link ExecutionPlan} with the four supervisor-topology fields needed by {@code
  * WorkflowEngine#runSupervisor}.
  */
+@Getter
 public class SupervisorExecutionPlan extends ExecutionPlan {
 
     private final WorkflowNode supervisorNode;
@@ -54,25 +58,5 @@ public class SupervisorExecutionPlan extends ExecutionPlan {
         this.dispatchEdges = Collections.unmodifiableMap(dispatchEdges);
         this.reportBackEdges = Collections.unmodifiableMap(reportBackEdges);
         this.maxIterations = maxIterations;
-    }
-
-    public WorkflowNode getSupervisorNode() {
-        return supervisorNode;
-    }
-
-    public List<WorkflowNode> getWorkerNodes() {
-        return workerNodes;
-    }
-
-    public Map<String, List<WorkflowNode>> getDispatchEdges() {
-        return dispatchEdges;
-    }
-
-    public Map<String, WorkflowNode> getReportBackEdges() {
-        return reportBackEdges;
-    }
-
-    public int getMaxIterations() {
-        return maxIterations;
     }
 }

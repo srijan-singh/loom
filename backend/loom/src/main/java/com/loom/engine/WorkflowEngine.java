@@ -16,6 +16,27 @@
  */
 package com.loom.engine;
 
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,26 +55,6 @@ import com.loom.storage.repository.SessionRepository;
 import com.loom.storage.repository.WorkflowRepository;
 import com.loom.storage.repository.WorkspaceKnowledgeRepository;
 import com.loom.transport.SSEManager;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Orchestrates the execution of a workflow session by resolving the {@link ExecutionPlan}, managing
@@ -67,7 +68,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class WorkflowEngine {
 
-    /** Overridable in tests by setting directly. */
+    /** Overridable in tests by setting directly. Package-private by design. */
+    @SuppressWarnings("checkstyle:VisibilityModifier")
     long nodeTimeoutOverride = -1L;
 
     private final AgentRuntime agentRuntime;
@@ -548,136 +550,18 @@ public class WorkflowEngine {
                 toDispatch.add(id);
             }
 
-            // Submit each worker with per-node timeout; collect futures for bounded join
-            List<Future<?>> outerFutures = new ArrayList<>();
-            final boolean[] workerFailedRef = {false};
-
-            for (String nodeId : toDispatch) {
-                WorkflowNode workerNode = plan.getNode(nodeId);
-                final Future<String>[] workerFutureHolder = new Future[1];
-                Runnable task =
-                        () -> {
-                            broadcast(
-                                    sessionId,
-                                    EventType.NODE_RUNNING,
-                                    Map.of("nodeId", workerNode.getId()));
-                            stateManager.setStatus(
-                                    sessionId,
-                                    workerNode.getId(),
-                                    AgentExecutionStatus.RUNNING);
-                            Future<String> workerFuture =
-                                    nodeExecutor.submit(
-                                            () ->
-                                                    agentRuntime.executeNode(
-                                                            sessionId,
-                                                            workerNode,
-                                                            inputContext));
-                            synchronized (workerFutureHolder) {
-                                workerFutureHolder[0] = workerFuture;
-                            }
-                            try {
-                                workerFuture.get(timeoutSeconds, TimeUnit.SECONDS);
-                                stateManager.setStatus(
-                                        sessionId,
-                                        workerNode.getId(),
-                                        AgentExecutionStatus.COMPLETED);
-                                broadcast(
-                                        sessionId,
-                                        EventType.NODE_COMPLETED,
-                                        Map.of("nodeId", workerNode.getId()));
-                            } catch (InterruptedException ie) {
-                                Thread.currentThread().interrupt();
-                                synchronized (workerFutureHolder) {
-                                    if (workerFutureHolder[0] != null) {
-                                        workerFutureHolder[0].cancel(true);
-                                    }
-                                }
-                                stateManager.setStatus(
-                                        sessionId,
-                                        workerNode.getId(),
-                                        AgentExecutionStatus.FAILED);
-                                broadcast(
-                                        sessionId,
-                                        EventType.NODE_FAILED,
-                                        Map.of(
-                                                "nodeId",
-                                                workerNode.getId(),
-                                                "reason",
-                                                "interrupted"));
-                                workerFailedRef[0] = true;
-                            } catch (TimeoutException te) {
-                                workerFuture.cancel(true);
-                                stateManager.setStatus(
-                                        sessionId,
-                                        workerNode.getId(),
-                                        AgentExecutionStatus.FAILED);
-                                broadcast(
-                                        sessionId,
-                                        EventType.NODE_FAILED,
-                                        Map.of(
-                                                "nodeId",
-                                                workerNode.getId(),
-                                                "reason",
-                                                "timeout"));
-                                workerFailedRef[0] = true;
-                            } catch (Exception e) {
-                                stateManager.setStatus(
-                                        sessionId,
-                                        workerNode.getId(),
-                                        AgentExecutionStatus.FAILED);
-                                Throwable cause = e.getCause() != null ? e.getCause() : e;
-                                String reason =
-                                        cause.getMessage() != null
-                                                ? cause.getMessage()
-                                                : cause.getClass().getSimpleName();
-                                broadcast(
-                                        sessionId,
-                                        EventType.NODE_FAILED,
-                                        Map.of(
-                                                "nodeId",
-                                                workerNode.getId(),
-                                                "reason",
-                                                reason));
-                                workerFailedRef[0] = true;
-                            }
-                        };
-                try {
-                    outerFutures.add(workerExecutor.submit(task));
-                } catch (RejectedExecutionException ree) {
-                    log.warn(
-                            "runSupervisor: workerExecutor rejected submission for node '{}' in session {}",
-                            nodeId,
-                            sessionId);
-                    stateManager.setStatus(
-                            sessionId, workerNode.getId(), AgentExecutionStatus.FAILED);
-                    broadcast(
+            // Submit each worker and wait for the batch to complete.
+            boolean[] workerFailedRef = {false};
+            List<Future<?>> outerFutures =
+                    dispatchWorkerBatch(
                             sessionId,
-                            EventType.NODE_FAILED,
-                            Map.of("nodeId", workerNode.getId(), "reason", "rejected"));
-                    workerFailedRef[0] = true;
-                }
-            }
-            // Bounded join: wait at most (workers * timeout) so the loop cannot block forever
-            long batchDeadline =
-                    System.currentTimeMillis() + (toDispatch.size() + 1) * timeoutSeconds * 1000L;
-            try {
-                for (Future<?> f : outerFutures) {
-                    long remaining = batchDeadline - System.currentTimeMillis();
-                    if (remaining > 0) {
-                        f.get(remaining, TimeUnit.MILLISECONDS);
-                    } else {
-                        f.cancel(true);
-                    }
-                }
-            } catch (TimeoutException bte) {
-                log.warn("runSupervisor: worker batch timed out for session {}", sessionId);
-                for (Future<?> f : outerFutures) {
-                    f.cancel(true);
-                }
-                anyWorkerFailed = true;
-            } catch (Exception ignored) {
-                // individual worker failures are already recorded inside the task
-            }
+                            toDispatch,
+                            plan,
+                            inputContext,
+                            timeoutSeconds,
+                            workerFailedRef);
+            anyWorkerFailed |=
+                    joinWorkerBatch(sessionId, outerFutures, toDispatch.size(), timeoutSeconds);
             if (workerFailedRef[0]) {
                 anyWorkerFailed = true;
             }
@@ -717,6 +601,140 @@ public class WorkflowEngine {
     }
 
     // ── supervisor helpers ────────────────────────────────────────────────────
+
+    /**
+     * Submits each worker node in {@code toDispatch} to {@link #workerExecutor}. Each worker runs
+     * its own {@link AgentRuntime#executeNode} call inside {@link #nodeExecutor} with a per-node
+     * timeout. On any failure the node is marked FAILED, an SSE event is broadcast, and {@code
+     * workerFailedRef[0]} is set to {@code true}.
+     *
+     * @return the list of outer futures (one per dispatched node) for the caller to join on
+     */
+    @SuppressWarnings("unchecked")
+    private List<Future<?>> dispatchWorkerBatch(
+            String sessionId,
+            List<String> toDispatch,
+            SupervisorExecutionPlan plan,
+            String inputContext,
+            long timeoutSeconds,
+            boolean[] workerFailedRef) {
+        List<Future<?>> outerFutures = new ArrayList<>();
+        for (String nodeId : toDispatch) {
+            WorkflowNode workerNode = plan.getNode(nodeId);
+            Future<String>[] workerFutureHolder = new Future[1];
+            Runnable task =
+                    () ->
+                            runWorkerNode(
+                                    sessionId,
+                                    workerNode,
+                                    inputContext,
+                                    timeoutSeconds,
+                                    workerFutureHolder,
+                                    workerFailedRef);
+            try {
+                outerFutures.add(workerExecutor.submit(task));
+            } catch (RejectedExecutionException ree) {
+                log.warn(
+                        "runSupervisor: workerExecutor rejected node '{}' in session {}",
+                        nodeId,
+                        sessionId);
+                stateManager.setStatus(sessionId, workerNode.getId(), AgentExecutionStatus.FAILED);
+                broadcast(
+                        sessionId,
+                        EventType.NODE_FAILED,
+                        Map.of("nodeId", workerNode.getId(), "reason", "rejected"));
+                workerFailedRef[0] = true;
+            }
+        }
+        return outerFutures;
+    }
+
+    /**
+     * Executes a single worker node inside {@link #nodeExecutor} with a per-node timeout. Updates
+     * node status and broadcasts SSE events on completion or failure.
+     */
+    private void runWorkerNode(
+            String sessionId,
+            WorkflowNode workerNode,
+            String inputContext,
+            long timeoutSeconds,
+            Future<String>[] workerFutureHolder,
+            boolean[] workerFailedRef) {
+        broadcast(sessionId, EventType.NODE_RUNNING, Map.of("nodeId", workerNode.getId()));
+        stateManager.setStatus(sessionId, workerNode.getId(), AgentExecutionStatus.RUNNING);
+        Future<String> workerFuture =
+                nodeExecutor.submit(
+                        () -> agentRuntime.executeNode(sessionId, workerNode, inputContext));
+        synchronized (workerFutureHolder) {
+            workerFutureHolder[0] = workerFuture;
+        }
+        try {
+            workerFuture.get(timeoutSeconds, TimeUnit.SECONDS);
+            stateManager.setStatus(sessionId, workerNode.getId(), AgentExecutionStatus.COMPLETED);
+            broadcast(sessionId, EventType.NODE_COMPLETED, Map.of("nodeId", workerNode.getId()));
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            synchronized (workerFutureHolder) {
+                if (workerFutureHolder[0] != null) workerFutureHolder[0].cancel(true);
+            }
+            stateManager.setStatus(sessionId, workerNode.getId(), AgentExecutionStatus.FAILED);
+            broadcast(
+                    sessionId,
+                    EventType.NODE_FAILED,
+                    Map.of("nodeId", workerNode.getId(), "reason", "interrupted"));
+            workerFailedRef[0] = true;
+        } catch (TimeoutException te) {
+            workerFuture.cancel(true);
+            stateManager.setStatus(sessionId, workerNode.getId(), AgentExecutionStatus.FAILED);
+            broadcast(
+                    sessionId,
+                    EventType.NODE_FAILED,
+                    Map.of("nodeId", workerNode.getId(), "reason", "timeout"));
+            workerFailedRef[0] = true;
+        } catch (Exception e) {
+            stateManager.setStatus(sessionId, workerNode.getId(), AgentExecutionStatus.FAILED);
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            String reason =
+                    cause.getMessage() != null
+                            ? cause.getMessage()
+                            : cause.getClass().getSimpleName();
+            broadcast(
+                    sessionId,
+                    EventType.NODE_FAILED,
+                    Map.of("nodeId", workerNode.getId(), "reason", reason));
+            workerFailedRef[0] = true;
+        }
+    }
+
+    /**
+     * Waits for all outer futures (worker-dispatch tasks) up to a bounded deadline.
+     *
+     * @return {@code true} if any worker timed out at the batch level
+     */
+    private boolean joinWorkerBatch(
+            String sessionId, List<Future<?>> outerFutures, int workerCount, long timeoutSeconds) {
+        long batchDeadline =
+                System.currentTimeMillis() + (workerCount + 1) * timeoutSeconds * 1000L;
+        try {
+            for (Future<?> f : outerFutures) {
+                long remaining = batchDeadline - System.currentTimeMillis();
+                if (remaining > 0) {
+                    f.get(remaining, TimeUnit.MILLISECONDS);
+                } else {
+                    f.cancel(true);
+                }
+            }
+        } catch (TimeoutException bte) {
+            log.warn("runSupervisor: worker batch timed out for session {}", sessionId);
+            for (Future<?> f : outerFutures) {
+                f.cancel(true);
+            }
+            return true;
+        } catch (Exception ignored) {
+            // individual worker failures are already recorded inside runWorkerNode
+        }
+        return false;
+    }
 
     private Optional<SupervisorResponse> parseSupervisorResponse(String rawOutput) {
         if (rawOutput == null || rawOutput.isBlank()) {

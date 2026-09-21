@@ -16,17 +16,19 @@
  */
 package com.loom.transport.routes;
 
+import io.javalin.router.JavalinDefaultRoutingApi;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
 import com.loom.domain.AgentExecution;
 import com.loom.domain.Session;
 import com.loom.domain.SessionStatus;
 import com.loom.engine.WorkflowEngine;
 import com.loom.storage.repository.AgentExecutionRepository;
 import com.loom.storage.repository.SessionRepository;
-import io.javalin.router.JavalinDefaultRoutingApi;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Registers the HTTP routes that manage {@link com.loom.domain.Session} lifecycle:
@@ -163,13 +165,15 @@ public class SessionRoutes {
                 });
     }
 
-    /** Simple request body for POST /sessions. */
+    /** Simple request body for POST /sessions. Fields are public for Jackson deserialisation. */
+    @SuppressWarnings("checkstyle:VisibilityModifier")
     public static final class SessionCreateRequest {
         public String workspaceId;
         public String workflowDefinitionId;
     }
 
-    /** Request body for POST /sessions/{id}/run. */
+    /** Request body for POST /sessions/{id}/run. Fields are public for Jackson deserialisation. */
+    @SuppressWarnings("checkstyle:VisibilityModifier")
     public static final class SessionRunRequest {
         public String prompt;
     }

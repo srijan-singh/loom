@@ -16,13 +16,14 @@
  */
 package com.loom.storage.repository;
 
-import com.loom.domain.AgentExecution;
-import com.loom.domain.AgentExecutionStatus;
-import com.loom.storage.DatabaseManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.Optional;
+
+import com.loom.domain.AgentExecution;
+import com.loom.domain.AgentExecutionStatus;
+import com.loom.storage.DatabaseManager;
 
 public class AgentExecutionRepository extends BaseRepository<AgentExecution> {
 

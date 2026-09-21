@@ -16,8 +16,9 @@
  */
 package com.loom.llm;
 
-import com.loom.LoomEnv;
 import lombok.extern.slf4j.Slf4j;
+
+import com.loom.LoomEnv;
 
 /**
  * Selects the appropriate {@link LLMGateway} implementation at startup.

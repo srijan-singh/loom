@@ -16,9 +16,11 @@
  */
 package com.loom.llm;
 
-import java.util.Map;
 import lombok.Builder;
 import lombok.Data;
+
+import java.util.Map;
+
 import org.jspecify.annotations.Nullable;
 
 /**

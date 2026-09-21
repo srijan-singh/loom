@@ -16,44 +16,21 @@
  */
 package com.loom.engine;
 
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.util.List;
 
 /**
  * Data carrier for the structured JSON response a supervisor agent emits each iteration.
  *
- * <p>Deserialised by {@code WorkflowEngine} via Jackson. Requires a no-arg constructor and standard
- * getters/setters.
+ * <p>Deserialised by {@code WorkflowEngine} via Jackson.
  */
+@Data
+@NoArgsConstructor
 public class SupervisorResponse {
 
     private boolean done;
     private List<String> dispatchTo;
     private String message;
-
-    /** No-arg constructor required for Jackson deserialisation. */
-    public SupervisorResponse() {}
-
-    public boolean isDone() {
-        return done;
-    }
-
-    public void setDone(boolean done) {
-        this.done = done;
-    }
-
-    public List<String> getDispatchTo() {
-        return dispatchTo;
-    }
-
-    public void setDispatchTo(List<String> dispatchTo) {
-        this.dispatchTo = dispatchTo;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
-    }
 }

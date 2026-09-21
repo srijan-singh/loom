@@ -16,10 +16,12 @@
  */
 package com.loom.transport.routes;
 
+import io.javalin.router.JavalinDefaultRoutingApi;
+
+import java.util.Optional;
+
 import com.loom.domain.AgentDefinition;
 import com.loom.storage.repository.AgentRepository;
-import io.javalin.router.JavalinDefaultRoutingApi;
-import java.util.Optional;
 
 public class AgentRoutes {
 

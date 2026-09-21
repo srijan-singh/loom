@@ -16,12 +16,17 @@
  */
 package com.loom.storage.repository;
 
-import com.loom.domain.*;
-import com.loom.storage.DatabaseManager;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.loom.domain.WorkflowCreatedBy;
+import com.loom.domain.WorkflowDefinition;
+import com.loom.domain.WorkflowEdge;
+import com.loom.domain.WorkflowNode;
+import com.loom.domain.WorkflowType;
+import com.loom.storage.DatabaseManager;
 
 public class WorkflowRepository extends BaseRepository<WorkflowDefinition> {
 

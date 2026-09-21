@@ -2,6 +2,7 @@ plugins {
     id("java")
     id("com.gradleup.shadow") version "9.0.0-beta4"
     id("com.diffplug.spotless") version "7.0.4"
+    id("checkstyle")
 }
 
 group = "com.loom"
@@ -89,16 +90,42 @@ spotless {
         // Use AOSP style (4-space indent) to match the project's existing code.
         googleJavaFormat("1.25.2").aosp().reflowLongStrings(false)
 
+        // Remove any import that is no longer referenced.
+        removeUnusedImports()
+
+        // Enforce a canonical import order so diffs stay minimal:
+        //   1. static imports (alphabetical)
+        //   2. blank line
+        //   3. all other imports (alphabetical, no sub-groups)
+        // This mirrors what google-java-format produces after reformatting.
+        importOrder("\\#", "", "java|javax", "com|org")
+
         // Trim trailing whitespace and ensure a single newline at EOF
         trimTrailingWhitespace()
         endWithNewline()
     }
 }
 
-// spotlessCheck runs as part of the standard `check` lifecycle so the build
-// breaks automatically on any formatting or licence violation.
+// ── Checkstyle: structural + complexity enforcement ────────────────────────
+//
+// Spotless owns formatting (whitespace, indentation, import order).
+// Checkstyle owns structure (complexity, coupling, naming, visibility).
+// The two tools complement each other: Spotless auto-fixes, Checkstyle fails.
+
+checkstyle {
+    toolVersion = "10.21.4"
+    configFile = file("config/checkstyle.xml")
+    // Treat every violation as an error so the build fails on any new issue.
+    isIgnoreFailures = false
+    // Include main sources only; test sources are suppressed in checkstyle.xml.
+    sourceSets = listOf(project.sourceSets.main.get())
+}
+
+// Attach both gates to the standard `check` lifecycle so
+//   ./gradlew check   runs format validation + structural analysis + tests.
 tasks.named("check") {
     dependsOn("spotlessCheck")
+    dependsOn("checkstyleMain")
 }
 
 tasks.test {

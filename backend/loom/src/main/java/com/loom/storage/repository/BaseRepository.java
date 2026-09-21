@@ -16,9 +16,6 @@
  */
 package com.loom.storage.repository;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.loom.storage.DatabaseManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -26,6 +23,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loom.storage.DatabaseManager;
 
 /**
  * Provides the three queries every repository shares: {@link #findById}, {@link #findAll}, and

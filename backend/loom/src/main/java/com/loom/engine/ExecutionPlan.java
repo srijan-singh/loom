@@ -16,15 +16,21 @@
  */
 package com.loom.engine;
 
-import com.loom.domain.WorkflowEdge;
-import com.loom.domain.WorkflowNode;
+import lombok.Getter;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import com.loom.domain.WorkflowEdge;
+import com.loom.domain.WorkflowNode;
+
+@Getter
 public class ExecutionPlan {
 
+    /** Nodes in topological (execution) order. */
     private final List<WorkflowNode> orderedNodes;
+
     private final Map<String, WorkflowNode> nodeById;
     private final Map<String, List<WorkflowEdge>> edgesByFromNodeId;
 
@@ -35,11 +41,6 @@ public class ExecutionPlan {
         this.orderedNodes = Collections.unmodifiableList(orderedNodes);
         this.nodeById = Collections.unmodifiableMap(nodeById);
         this.edgesByFromNodeId = Collections.unmodifiableMap(edgesByFromNodeId);
-    }
-
-    /** Nodes in topological (execution) order. */
-    public List<WorkflowNode> getOrderedNodes() {
-        return orderedNodes;
     }
 
     /** O(1) node lookup by id. */

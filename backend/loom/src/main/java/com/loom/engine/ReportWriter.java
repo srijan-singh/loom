@@ -16,12 +16,13 @@
  */
 package com.loom.engine;
 
-import com.loom.domain.AgentExecution;
-import com.loom.domain.WorkspaceKnowledge;
-import com.loom.storage.repository.WorkspaceKnowledgeRepository;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+
+import com.loom.domain.AgentExecution;
+import com.loom.domain.WorkspaceKnowledge;
+import com.loom.storage.repository.WorkspaceKnowledgeRepository;
 
 /**
  * Persists the final output of an {@link AgentExecution} as a {@link WorkspaceKnowledge} record in

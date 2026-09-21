@@ -16,22 +16,38 @@
  */
 package com.loom.engine;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.loom.domain.*;
-import com.loom.event.EventType;
-import com.loom.event.WorkflowEvent;
-import com.loom.llm.LLMGateway;
-import com.loom.llm.LLMRequest;
-import com.loom.llm.LLMResponse;
-import com.loom.mcp.MCPClient;
-import com.loom.storage.repository.*;
-import com.loom.transport.SSEManager;
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import lombok.extern.slf4j.Slf4j;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loom.domain.AgentDefinition;
+import com.loom.domain.AgentExecution;
+import com.loom.domain.AgentExecutionStatus;
+import com.loom.domain.NodeType;
+import com.loom.domain.Session;
+import com.loom.domain.SessionStatus;
+import com.loom.domain.WorkflowDefinition;
+import com.loom.domain.WorkflowNode;
+import com.loom.domain.WorkspaceKnowledge;
+import com.loom.event.EventType;
+import com.loom.event.WorkflowEvent;
+import com.loom.llm.LLMGateway;
+import com.loom.llm.LLMMessage;
+import com.loom.llm.LLMRequest;
+import com.loom.llm.LLMResponse;
+import com.loom.mcp.MCPClient;
+import com.loom.storage.repository.AgentExecutionRepository;
+import com.loom.storage.repository.AgentRepository;
+import com.loom.storage.repository.SessionRepository;
+import com.loom.storage.repository.SkillRepository;
+import com.loom.storage.repository.WorkflowRepository;
+import com.loom.storage.repository.WorkspaceKnowledgeRepository;
+import com.loom.transport.SSEManager;
 
 /**
  * Executes a single-agent workflow node:
@@ -438,16 +454,17 @@ public class AgentRuntime {
      * @return a new request with the tool result appended as the latest user message
      */
     private LLMRequest appendToolResult(LLMRequest prev, String toolName, String toolResult) {
-        List<com.loom.llm.LLMMessage> history =
+        List<LLMMessage> history =
                 prev.getHistory() != null ? new ArrayList<>(prev.getHistory()) : new ArrayList<>();
         if (history.isEmpty()) {
-            history.add(new com.loom.llm.LLMMessage("user", prev.getUserPrompt()));
+            history.add(new LLMMessage("user", prev.getUserPrompt()));
         }
-        history.add(new com.loom.llm.LLMMessage("assistant", "[Called tool: " + toolName + "]"));
+        history.add(new LLMMessage("assistant", "[Called tool: " + toolName + "]"));
+        history.add(new LLMMessage("user", "Tool result for " + toolName + ": " + toolResult));
         return LLMRequest.builder()
                 .model(prev.getModel())
                 .systemPrompt(prev.getSystemPrompt())
-                .userPrompt("Tool result for " + toolName + ": " + toolResult)
+                .userPrompt(prev.getUserPrompt())
                 .history(history)
                 .tools(prev.getTools())
                 .maxTokens(prev.getMaxTokens())

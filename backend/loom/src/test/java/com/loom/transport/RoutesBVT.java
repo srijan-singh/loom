@@ -18,6 +18,17 @@ package com.loom.transport;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loom.domain.SessionStatus;
@@ -31,16 +42,6 @@ import com.loom.storage.DatabaseManager;
 import com.loom.storage.TestFixtures;
 import com.loom.storage.repository.*;
 import com.loom.transport.util.TestSSEClient;
-import java.io.IOException;
-import java.net.ServerSocket;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import org.junit.jupiter.api.*;
 
 /**

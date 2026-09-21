@@ -19,16 +19,17 @@ package com.loom.engine;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 import com.loom.domain.EdgeCondition;
 import com.loom.domain.NodeType;
 import com.loom.domain.WorkflowDefinition;
 import com.loom.domain.WorkflowEdge;
 import com.loom.domain.WorkflowNode;
 import com.loom.domain.WorkflowType;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

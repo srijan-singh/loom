@@ -16,11 +16,12 @@
  */
 package com.loom.storage.repository;
 
-import com.loom.domain.WorkspaceKnowledge;
-import com.loom.storage.DatabaseManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+
+import com.loom.domain.WorkspaceKnowledge;
+import com.loom.storage.DatabaseManager;
 
 public class WorkspaceKnowledgeRepository extends BaseRepository<WorkspaceKnowledge> {
 

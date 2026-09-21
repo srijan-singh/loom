@@ -16,13 +16,14 @@
  */
 package com.loom.storage.repository;
 
-import com.loom.domain.Session;
-import com.loom.domain.SessionStatus;
-import com.loom.storage.DatabaseManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.List;
+
+import com.loom.domain.Session;
+import com.loom.domain.SessionStatus;
+import com.loom.storage.DatabaseManager;
 
 public class SessionRepository extends BaseRepository<Session> {
 

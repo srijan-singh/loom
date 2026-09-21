@@ -16,12 +16,6 @@
  */
 package com.loom.engine;
 
-import com.loom.LoomEnv;
-import com.loom.domain.NodeType;
-import com.loom.domain.WorkflowDefinition;
-import com.loom.domain.WorkflowEdge;
-import com.loom.domain.WorkflowNode;
-import com.loom.domain.WorkflowType;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,6 +25,13 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import com.loom.LoomEnv;
+import com.loom.domain.NodeType;
+import com.loom.domain.WorkflowDefinition;
+import com.loom.domain.WorkflowEdge;
+import com.loom.domain.WorkflowNode;
+import com.loom.domain.WorkflowType;
 
 /**
  * Validates a {@link WorkflowDefinition} and produces a topologically-ordered {@link ExecutionPlan}

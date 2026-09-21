@@ -183,10 +183,10 @@
              @Data pattern (if someone writes it manually).                     -->
         <module name="EqualsHashCode"/>
 
-        <!-- EqualsAvoidNull: catches  "foo".equals(variable) rather than
-             Objects.equals(variable, "foo") or variable.equals("foo") with a
-             null guard — but more commonly flags  if (str.equals("")) which
-             should be str.isEmpty().                                           -->
+        <!-- EqualsAvoidNull: catches  variable.equals("literal") where the
+             string literal must be on the left side — prefer
+             "literal".equals(variable) or Objects.equals(variable, "literal")
+             to avoid a NullPointerException when variable is null.            -->
         <module name="EqualsAvoidNull"/>
 
         <!-- HiddenField: a parameter or local variable that shadows a field.

@@ -662,9 +662,20 @@ public class WorkflowEngine {
             boolean[] workerFailedRef) {
         broadcast(sessionId, EventType.NODE_RUNNING, Map.of("nodeId", workerNode.getId()));
         stateManager.setStatus(sessionId, workerNode.getId(), AgentExecutionStatus.RUNNING);
-        Future<String> workerFuture =
-                nodeExecutor.submit(
-                        () -> agentRuntime.executeNode(sessionId, workerNode, inputContext));
+        Future<String> workerFuture;
+        try {
+            workerFuture =
+                    nodeExecutor.submit(
+                            () -> agentRuntime.executeNode(sessionId, workerNode, inputContext));
+        } catch (RejectedExecutionException ree) {
+            stateManager.setStatus(sessionId, workerNode.getId(), AgentExecutionStatus.FAILED);
+            broadcast(
+                    sessionId,
+                    EventType.NODE_FAILED,
+                    Map.of("nodeId", workerNode.getId(), "reason", "rejected"));
+            workerFailedRef[0] = true;
+            return;
+        }
         synchronized (workerFutureHolder) {
             workerFutureHolder[0] = workerFuture;
         }
@@ -716,12 +727,16 @@ public class WorkflowEngine {
         long batchDeadline =
                 System.currentTimeMillis() + (workerCount + 1) * timeoutSeconds * 1000L;
         try {
-            for (Future<?> f : outerFutures) {
+            for (int i = 0; i < outerFutures.size(); i++) {
                 long remaining = batchDeadline - System.currentTimeMillis();
                 if (remaining > 0) {
-                    f.get(remaining, TimeUnit.MILLISECONDS);
+                    outerFutures.get(i).get(remaining, TimeUnit.MILLISECONDS);
                 } else {
-                    f.cancel(true);
+                    log.warn("runSupervisor: worker batch timed out for session {}", sessionId);
+                    for (int j = i; j < outerFutures.size(); j++) {
+                        outerFutures.get(j).cancel(true);
+                    }
+                    return true;
                 }
             }
         } catch (TimeoutException bte) {

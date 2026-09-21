@@ -173,7 +173,7 @@ Never suppress `VisibilityModifier` without a comment explaining why.
 | Rule | What it catches |
 |---|---|
 | `EqualsHashCode` | Manually overriding `equals()` without `hashCode()` |
-| `EqualsAvoidNull` | `"literal".equals(variable)` comparisons |
+| `EqualsAvoidNull` | `variable.equals("literal")` — string literal must be on the left |
 | `HiddenField` | Local variable or parameter shadowing a field |
 | `MissingSwitchDefault` | `switch` without a `default` branch |
 | `FallThrough` | Switch case falling through without a comment |

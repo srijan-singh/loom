@@ -16,6 +16,7 @@
  */
 package com.loom.llm;
 
+import com.loom.LoomEnv;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -42,11 +43,11 @@ public class LLMProviderFactory {
     private LLMProviderFactory() {}
 
     public static LLMGateway create() {
-        boolean hasAnthropic = isSet("ANTHROPIC_API_KEY");
-        boolean hasOpenAI = isSet("OPENAI_API_KEY");
+        boolean hasAnthropic = LoomEnv.ANTHROPIC_API_KEY.isSet();
+        boolean hasOpenAI = LoomEnv.OPENAI_API_KEY.isSet();
 
         if (hasAnthropic && hasOpenAI) {
-            String preference = System.getenv("LLM_PROVIDER");
+            String preference = LoomEnv.LLM_PROVIDER.get();
             if ("openai".equalsIgnoreCase(preference)) {
                 log.info("LLM provider: GPTProvider (both keys set, LLM_PROVIDER=openai)");
                 return new GPTProvider();
@@ -67,14 +68,11 @@ public class LLMProviderFactory {
         }
 
         log.warn(
-                "No LLM API key found (ANTHROPIC_API_KEY / OPENAI_API_KEY). "
+                "No LLM API key found ({} / {}). "
                         + "Using MockLLMProvider — suitable for local development only. "
-                        + "Every request will produce a canned response.");
+                        + "Every request will produce a canned response.",
+                LoomEnv.ANTHROPIC_API_KEY.key(),
+                LoomEnv.OPENAI_API_KEY.key());
         return new MockLLMProvider();
-    }
-
-    private static boolean isSet(String envVar) {
-        String val = System.getenv(envVar);
-        return val != null && !val.isBlank();
     }
 }

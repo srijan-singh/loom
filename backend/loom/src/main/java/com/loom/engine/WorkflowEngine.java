@@ -16,7 +16,10 @@
  */
 package com.loom.engine;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loom.LoomEnv;
 import com.loom.domain.AgentExecutionStatus;
 import com.loom.domain.NodeType;
 import com.loom.domain.Session;
@@ -63,8 +66,6 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class WorkflowEngine {
-
-    private static final long DEFAULT_NODE_TIMEOUT_SECONDS = 120L;
 
     /** Overridable in tests by setting directly. */
     long nodeTimeoutOverride = -1L;
@@ -153,11 +154,7 @@ public class WorkflowEngine {
                         nodeFactory,
                         new ThreadPoolExecutor.AbortPolicy());
 
-        String workerThreadsEnv = System.getenv("LOOM_WORKER_THREADS");
-        int workerThreads =
-                (workerThreadsEnv != null && !workerThreadsEnv.isBlank())
-                        ? Integer.parseInt(workerThreadsEnv)
-                        : 4;
+        int workerThreads = LoomEnv.LOOM_WORKER_THREADS.getInt();
         this.workerExecutor =
                 new ThreadPoolExecutor(
                         workerThreads,
@@ -451,6 +448,13 @@ public class WorkflowEngine {
     private void runSupervisor(Session session, SupervisorExecutionPlan plan, String inputContext) {
         String sessionId = session.getId();
         WorkflowNode supervisorNode = plan.getSupervisorNode();
+        long timeoutSeconds = nodeTimeoutSeconds();
+
+        // Build the permitted worker ID set once — only these may be dispatched
+        Set<String> permittedWorkerIds = new HashSet<>();
+        for (WorkflowNode w : plan.getWorkerNodes()) {
+            permittedWorkerIds.add(w.getId());
+        }
 
         // Set session to RUNNING
         session.setStatus(SessionStatus.RUNNING);
@@ -470,21 +474,34 @@ public class WorkflowEngine {
         boolean anyWorkerFailed = false;
 
         while (iteration < plan.getMaxIterations() && !done) {
-            // --- SUPERVISOR TURN ---
+            // --- SUPERVISOR TURN (with timeout) ---
             String supervisorCtx = buildSupervisorContext(inputContext, workerReports, iteration);
             broadcast(sessionId, EventType.NODE_RUNNING, Map.of("nodeId", supervisorNode.getId()));
             stateManager.setStatus(sessionId, supervisorNode.getId(), AgentExecutionStatus.RUNNING);
 
             String supervisorOutput;
+            final WorkflowNode supNode = supervisorNode;
+            Future<String> supFuture =
+                    nodeExecutor.submit(
+                            () -> agentRuntime.executeNode(sessionId, supNode, supervisorCtx));
             try {
-                supervisorOutput =
-                        agentRuntime.executeNode(sessionId, supervisorNode, supervisorCtx);
+                supervisorOutput = supFuture.get(timeoutSeconds, TimeUnit.SECONDS);
                 stateManager.setStatus(
                         sessionId, supervisorNode.getId(), AgentExecutionStatus.COMPLETED);
                 broadcast(
                         sessionId,
                         EventType.NODE_COMPLETED,
                         Map.of("nodeId", supervisorNode.getId()));
+            } catch (TimeoutException te) {
+                supFuture.cancel(true);
+                stateManager.setStatus(
+                        sessionId, supervisorNode.getId(), AgentExecutionStatus.FAILED);
+                broadcast(
+                        sessionId,
+                        EventType.NODE_FAILED,
+                        Map.of("nodeId", supervisorNode.getId(), "reason", "timeout"));
+                parseFailed = true;
+                break;
             } catch (Exception ex) {
                 stateManager.setStatus(
                         sessionId, supervisorNode.getId(), AgentExecutionStatus.FAILED);
@@ -508,19 +525,35 @@ public class WorkflowEngine {
             }
 
             // --- WORKER DISPATCH BATCH ---
-            List<String> toDispatch =
+            // Deduplicate dispatch IDs (insertion-ordered, first-seen wins)
+            List<String> rawDispatch =
                     response.getDispatchTo() != null ? response.getDispatchTo() : List.of();
+            List<String> toDispatch = new ArrayList<>();
+            Set<String> seen = new HashSet<>();
+            for (String id : rawDispatch) {
+                if (!seen.add(id)) continue; // duplicate
+                WorkflowNode candidate = plan.getNode(id);
+                if (candidate == null) {
+                    log.warn(
+                            "runSupervisor: dispatcher returned unknown nodeId '{}', skipping", id);
+                    continue;
+                }
+                if (candidate.getNodeType() != NodeType.WORKER
+                        || !permittedWorkerIds.contains(id)) {
+                    log.warn(
+                            "runSupervisor: nodeId '{}' is not a permitted WORKER node, skipping",
+                            id);
+                    continue;
+                }
+                toDispatch.add(id);
+            }
+
+            // Submit each worker with per-node timeout; collect futures for bounded join
             List<CompletableFuture<Void>> futures = new ArrayList<>();
             final boolean[] workerFailedRef = {false};
 
             for (String nodeId : toDispatch) {
                 WorkflowNode workerNode = plan.getNode(nodeId);
-                if (workerNode == null) {
-                    log.warn(
-                            "runSupervisor: dispatcher returned unknown nodeId '{}', skipping",
-                            nodeId);
-                    continue;
-                }
                 CompletableFuture<Void> f =
                         CompletableFuture.runAsync(
                                 () -> {
@@ -532,9 +565,15 @@ public class WorkflowEngine {
                                             sessionId,
                                             workerNode.getId(),
                                             AgentExecutionStatus.RUNNING);
+                                    Future<String> workerFuture =
+                                            nodeExecutor.submit(
+                                                    () ->
+                                                            agentRuntime.executeNode(
+                                                                    sessionId,
+                                                                    workerNode,
+                                                                    inputContext));
                                     try {
-                                        agentRuntime.executeNode(
-                                                sessionId, workerNode, inputContext);
+                                        workerFuture.get(timeoutSeconds, TimeUnit.SECONDS);
                                         stateManager.setStatus(
                                                 sessionId,
                                                 workerNode.getId(),
@@ -543,15 +582,31 @@ public class WorkflowEngine {
                                                 sessionId,
                                                 EventType.NODE_COMPLETED,
                                                 Map.of("nodeId", workerNode.getId()));
+                                    } catch (TimeoutException te) {
+                                        workerFuture.cancel(true);
+                                        stateManager.setStatus(
+                                                sessionId,
+                                                workerNode.getId(),
+                                                AgentExecutionStatus.FAILED);
+                                        broadcast(
+                                                sessionId,
+                                                EventType.NODE_FAILED,
+                                                Map.of(
+                                                        "nodeId",
+                                                        workerNode.getId(),
+                                                        "reason",
+                                                        "timeout"));
+                                        workerFailedRef[0] = true;
                                     } catch (Exception e) {
                                         stateManager.setStatus(
                                                 sessionId,
                                                 workerNode.getId(),
                                                 AgentExecutionStatus.FAILED);
+                                        Throwable cause = e.getCause() != null ? e.getCause() : e;
                                         String reason =
-                                                e.getMessage() != null
-                                                        ? e.getMessage()
-                                                        : e.getClass().getSimpleName();
+                                                cause.getMessage() != null
+                                                        ? cause.getMessage()
+                                                        : cause.getClass().getSimpleName();
                                         broadcast(
                                                 sessionId,
                                                 EventType.NODE_FAILED,
@@ -566,7 +621,24 @@ public class WorkflowEngine {
                                 workerExecutor);
                 futures.add(f);
             }
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            // Bounded join: wait at most (workers * timeout) so the loop cannot block forever
+            long batchDeadline =
+                    System.currentTimeMillis() + (toDispatch.size() + 1) * timeoutSeconds * 1000L;
+            try {
+                CompletableFuture<Void> all =
+                        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+                long remaining = batchDeadline - System.currentTimeMillis();
+                if (remaining > 0) {
+                    all.get(remaining, TimeUnit.MILLISECONDS);
+                } else {
+                    all.cancel(true);
+                }
+            } catch (TimeoutException bte) {
+                log.warn("runSupervisor: worker batch timed out for session {}", sessionId);
+                anyWorkerFailed = true;
+            } catch (Exception ignored) {
+                // individual worker failures are already recorded inside the futures
+            }
             if (workerFailedRef[0]) {
                 anyWorkerFailed = true;
             }
@@ -611,18 +683,33 @@ public class WorkflowEngine {
         if (rawOutput == null || rawOutput.isBlank()) {
             return Optional.empty();
         }
-        int lastOpen = rawOutput.lastIndexOf('{');
-        int lastClose = rawOutput.lastIndexOf('}');
-        if (lastOpen < 0 || lastClose < 0 || lastClose < lastOpen) {
-            return Optional.empty();
-        }
-        String json = rawOutput.substring(lastOpen, lastClose + 1);
+        // 1. Try the whole output first (cheapest path — agent emitted only JSON)
         try {
-            SupervisorResponse resp = mapper.readValue(json, SupervisorResponse.class);
+            SupervisorResponse resp = mapper.readValue(rawOutput.trim(), SupervisorResponse.class);
             return Optional.of(resp);
-        } catch (Exception e) {
-            return Optional.empty();
+        } catch (Exception ignored) {
+            // not pure JSON — fall through to extraction
         }
+        // 2. Use Jackson's JsonParser to scan forward for each top-level '{' and attempt a full
+        //    deserialisation from that position.  Jackson handles all quoting, nesting, unicode,
+        //    and escape sequences — no hand-rolled brace counting needed.  We keep the last
+        //    successful parse so the semantics match "last JSON object in the output".
+        SupervisorResponse last = null;
+        try (JsonParser jp = mapper.createParser(rawOutput)) {
+            JsonToken token;
+            while ((token = jp.nextToken()) != null) {
+                if (token == JsonToken.START_OBJECT) {
+                    try {
+                        last = mapper.readValue(jp, SupervisorResponse.class);
+                    } catch (Exception ignored) {
+                        // not a valid SupervisorResponse at this position — keep scanning
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // malformed JSON stream — fall through
+        }
+        return last != null ? Optional.of(last) : Optional.empty();
     }
 
     private String buildSupervisorContext(
@@ -727,18 +814,10 @@ public class WorkflowEngine {
 
     /**
      * Returns the effective node timeout in seconds. Prefers {@link #nodeTimeoutOverride} when
-     * positive, then the {@code LOOM_NODE_TIMEOUT_SECONDS} environment variable, then {@link
-     * #DEFAULT_NODE_TIMEOUT_SECONDS}.
+     * positive, then {@link LoomEnv#LOOM_NODE_TIMEOUT_SECONDS}.
      */
     long nodeTimeoutSeconds() {
         if (nodeTimeoutOverride > 0) return nodeTimeoutOverride;
-        String env = System.getenv("LOOM_NODE_TIMEOUT_SECONDS");
-        if (env != null && !env.isBlank()) {
-            try {
-                return Long.parseLong(env);
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        return DEFAULT_NODE_TIMEOUT_SECONDS;
+        return LoomEnv.LOOM_NODE_TIMEOUT_SECONDS.getLong();
     }
 }

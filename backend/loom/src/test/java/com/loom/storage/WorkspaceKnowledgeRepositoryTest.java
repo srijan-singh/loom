@@ -126,8 +126,28 @@ class WorkspaceKnowledgeRepositoryTest {
 
     @Test
     void findBySessionIdDoesNotReturnRowsFromDifferentSession() {
-        // session-wk-a rows were inserted in test 1; verify session-wk-b returns empty
-        List<WorkspaceKnowledge> results = knowledgeRepo.findBySessionId("session-wk-b");
-        assertThat(results).isEmpty();
+        // Insert independent rows for both session-wk-c and session-wk-d so this test
+        // does not rely on state from any other test method.
+        insertSession("session-wk-c");
+        AgentExecution execC = insertExec("session-wk-c", 3000L);
+        WorkspaceKnowledge wkC = insertKnowledge(execC.getId(), 3000L);
+
+        insertSession("session-wk-d");
+        AgentExecution execD = insertExec("session-wk-d", 4000L);
+        WorkspaceKnowledge wkD = insertKnowledge(execD.getId(), 4000L);
+
+        // session-wk-c must return only its own row
+        List<WorkspaceKnowledge> resultsC = knowledgeRepo.findBySessionId("session-wk-c");
+        assertThat(resultsC).hasSize(1);
+        assertThat(resultsC.get(0).getId()).isEqualTo(wkC.getId());
+
+        // session-wk-d must return only its own row, not session-wk-c's
+        List<WorkspaceKnowledge> resultsD = knowledgeRepo.findBySessionId("session-wk-d");
+        assertThat(resultsD).hasSize(1);
+        assertThat(resultsD.get(0).getId()).isEqualTo(wkD.getId());
+
+        // Explicit exclusion: wkD must not appear in session-wk-c results, and vice-versa
+        assertThat(resultsC.stream().map(WorkspaceKnowledge::getId)).doesNotContain(wkD.getId());
+        assertThat(resultsD.stream().map(WorkspaceKnowledge::getId)).doesNotContain(wkC.getId());
     }
 }

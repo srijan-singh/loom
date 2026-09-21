@@ -16,6 +16,7 @@
  */
 package com.loom.storage;
 
+import com.loom.LoomEnv;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -51,11 +52,7 @@ public class DatabaseManager {
     private final String jdbcUrl;
 
     public DatabaseManager() {
-        String path = System.getenv("LOOM_DB_PATH");
-        if (path == null || path.isBlank()) {
-            path = "./loom.db";
-        }
-        this.jdbcUrl = "jdbc:sqlite:" + path;
+        this.jdbcUrl = "jdbc:sqlite:" + LoomEnv.LOOM_DB_PATH.getString();
         initSchema();
     }
 

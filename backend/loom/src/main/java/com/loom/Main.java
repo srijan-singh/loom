@@ -32,8 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class Main {
     public static void main(String[] args) {
-        String portEnv = System.getenv("LOOM_PORT");
-        int port = (portEnv != null && !portEnv.isBlank()) ? Integer.parseInt(portEnv) : 7070;
+        int port = LoomEnv.LOOM_PORT.getInt();
 
         // Storage
         DatabaseManager db = new DatabaseManager();

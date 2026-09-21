@@ -16,6 +16,7 @@
  */
 package com.loom.engine;
 
+import com.loom.LoomEnv;
 import com.loom.domain.NodeType;
 import com.loom.domain.WorkflowDefinition;
 import com.loom.domain.WorkflowEdge;
@@ -297,9 +298,29 @@ public class GraphResolver {
             reportBackEdges.put(worker.getId(), supervisorNode);
         }
 
-        // Read maxIterations from env (default 10)
-        String envVal = System.getenv("LOOM_SUPERVISOR_MAX_ITER");
-        int maxIterations = (envVal != null && !envVal.isBlank()) ? Integer.parseInt(envVal) : 10;
+        // Read maxIterations from env; reject malformed, zero, or negative values explicitly
+        // so the caller gets an InvalidWorkflowException rather than a silent fallback.
+        String envVal = LoomEnv.LOOM_SUPERVISOR_MAX_ITER.get();
+        int maxIterations;
+        if (envVal != null) {
+            try {
+                int parsed = Integer.parseInt(envVal.trim());
+                if (parsed <= 0) {
+                    throw new InvalidWorkflowException(
+                            LoomEnv.LOOM_SUPERVISOR_MAX_ITER.key()
+                                    + " must be a positive integer, got: "
+                                    + envVal);
+                }
+                maxIterations = parsed;
+            } catch (NumberFormatException e) {
+                throw new InvalidWorkflowException(
+                        LoomEnv.LOOM_SUPERVISOR_MAX_ITER.key()
+                                + " is not a valid integer: "
+                                + envVal);
+            }
+        } else {
+            maxIterations = LoomEnv.LOOM_SUPERVISOR_MAX_ITER.getInt();
+        }
 
         return new SupervisorExecutionPlan(
                 nodes,

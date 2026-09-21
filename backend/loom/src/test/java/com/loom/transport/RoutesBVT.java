@@ -114,7 +114,8 @@ class RoutesBVT {
                         sessionRepo,
                         workflowRepo,
                         execRepo,
-                        sseManager);
+                        sseManager,
+                        knowledgeRepo);
 
         server =
                 new LocalServer(

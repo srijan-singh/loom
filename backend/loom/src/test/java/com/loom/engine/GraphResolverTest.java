@@ -28,6 +28,7 @@ import com.loom.domain.WorkflowType;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -61,6 +62,14 @@ class GraphResolverTest {
     private WorkflowDefinition chainOf(List<WorkflowNode> nodes, List<WorkflowEdge> edges) {
         WorkflowDefinition def = new WorkflowDefinition();
         def.setType(WorkflowType.CHAIN);
+        def.setNodes(nodes);
+        def.setEdges(edges);
+        return def;
+    }
+
+    private WorkflowDefinition supervisorOf(List<WorkflowNode> nodes, List<WorkflowEdge> edges) {
+        WorkflowDefinition def = new WorkflowDefinition();
+        def.setType(WorkflowType.SUPERVISOR);
         def.setNodes(nodes);
         def.setEdges(edges);
         return def;
@@ -124,15 +133,102 @@ class GraphResolverTest {
                 .satisfies(ex -> assertThat(ex.getMessage()).isNotBlank());
     }
 
+    // ── SUPERVISOR: valid graph ───────────────────────────────────────────────
+
     @Test
-    void supervisorTypeThrows() {
-        WorkflowDefinition def = new WorkflowDefinition();
-        def.setType(WorkflowType.SUPERVISOR);
-        def.setNodes(Collections.singletonList(node("s", NodeType.START)));
-        def.setEdges(Collections.emptyList());
+    void validSupervisorGraphReturnsSupervisorExecutionPlan() throws InvalidWorkflowException {
+        WorkflowNode sup = node("sup", NodeType.SUPERVISOR);
+        WorkflowNode w1 = node("w1", NodeType.WORKER);
+        WorkflowNode w2 = node("w2", NodeType.WORKER);
+        WorkflowNode w3 = node("w3", NodeType.WORKER);
+
+        WorkflowDefinition def =
+                supervisorOf(
+                        Arrays.asList(sup, w1, w2, w3),
+                        Arrays.asList(edge("sup", "w1"), edge("sup", "w2"), edge("sup", "w3")));
+
+        ExecutionPlan plan = resolver.resolve(def);
+
+        assertThat(plan).isInstanceOf(SupervisorExecutionPlan.class);
+        SupervisorExecutionPlan sp = (SupervisorExecutionPlan) plan;
+        assertThat(sp.getSupervisorNode()).isEqualTo(sup);
+        assertThat(sp.getWorkerNodes()).hasSize(3);
+        assertThat(sp.getDispatchEdges()).containsKey("sup");
+        assertThat(sp.getDispatchEdges().get("sup")).containsExactlyInAnyOrder(w1, w2, w3);
+        assertThat(sp.getReportBackEdges())
+                .containsAllEntriesOf(Map.of("w1", sup, "w2", sup, "w3", sup));
+    }
+
+    @Test
+    void supervisorGraphWithZeroSupervisorNodesThrows() {
+        WorkflowNode w1 = node("w1", NodeType.WORKER);
+        WorkflowDefinition def =
+                supervisorOf(Collections.singletonList(w1), Collections.emptyList());
 
         assertThatThrownBy(() -> resolver.resolve(def))
                 .isInstanceOf(InvalidWorkflowException.class);
+    }
+
+    @Test
+    void supervisorGraphWithTwoSupervisorNodesThrows() {
+        WorkflowNode sup1 = node("sup1", NodeType.SUPERVISOR);
+        WorkflowNode sup2 = node("sup2", NodeType.SUPERVISOR);
+        WorkflowNode w1 = node("w1", NodeType.WORKER);
+
+        WorkflowDefinition def =
+                supervisorOf(
+                        Arrays.asList(sup1, sup2, w1),
+                        Arrays.asList(edge("sup1", "w1"), edge("sup2", "w1")));
+
+        assertThatThrownBy(() -> resolver.resolve(def))
+                .isInstanceOf(InvalidWorkflowException.class);
+    }
+
+    @Test
+    void workerWithNoIncomingEdgeFromSupervisorThrows() {
+        WorkflowNode sup = node("sup", NodeType.SUPERVISOR);
+        WorkflowNode w1 = node("w1", NodeType.WORKER);
+        WorkflowNode w2 = node("w2", NodeType.WORKER); // no edge from sup
+
+        WorkflowDefinition def =
+                supervisorOf(
+                        Arrays.asList(sup, w1, w2), Collections.singletonList(edge("sup", "w1")));
+
+        assertThatThrownBy(() -> resolver.resolve(def))
+                .isInstanceOf(InvalidWorkflowException.class);
+    }
+
+    @Test
+    void supervisorSelfEdgeThrows() {
+        WorkflowNode sup = node("sup", NodeType.SUPERVISOR);
+        WorkflowNode w1 = node("w1", NodeType.WORKER);
+
+        WorkflowDefinition def =
+                supervisorOf(
+                        Arrays.asList(sup, w1),
+                        Arrays.asList(edge("sup", "w1"), edge("sup", "sup")));
+
+        assertThatThrownBy(() -> resolver.resolve(def))
+                .isInstanceOf(InvalidWorkflowException.class);
+    }
+
+    // ── regression: CHAIN still resolves as plain ExecutionPlan ──────────────
+
+    @Test
+    void chainWorkflowResolvesAsPlainExecutionPlan() throws InvalidWorkflowException {
+        WorkflowNode start = node("s", NodeType.START);
+        WorkflowNode w = node("w", NodeType.WORKER);
+        WorkflowNode end = node("e", NodeType.END);
+
+        WorkflowDefinition def =
+                chainOf(
+                        Arrays.asList(start, w, end),
+                        Arrays.asList(edge("s", "w"), edge("w", "e")));
+
+        ExecutionPlan plan = resolver.resolve(def);
+
+        assertThat(plan).isNotInstanceOf(SupervisorExecutionPlan.class);
+        assertThat(plan.getOrderedNodes()).containsExactly(start, w, end);
     }
 
     // ── structural validation ─────────────────────────────────────────────────

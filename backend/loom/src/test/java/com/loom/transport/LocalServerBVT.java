@@ -95,7 +95,8 @@ class LocalServerBVT {
                         sessionRepo,
                         workflowRepo,
                         execRepo,
-                        sseManager);
+                        sseManager,
+                        knowledgeRepo);
 
         server =
                 new LocalServer(

@@ -74,7 +74,8 @@ public class Main {
                         sessionRepo,
                         workflowRepo,
                         execRepo,
-                        sseManager);
+                        sseManager,
+                        knowledgeRepo);
 
         // Transport
         LocalServer localServer =

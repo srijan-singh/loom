@@ -23,12 +23,16 @@ import com.loom.domain.Session;
 import com.loom.domain.SessionStatus;
 import com.loom.domain.WorkflowDefinition;
 import com.loom.domain.WorkflowNode;
+import com.loom.domain.WorkspaceKnowledge;
 import com.loom.event.EventType;
 import com.loom.event.WorkflowEvent;
 import com.loom.storage.repository.AgentExecutionRepository;
 import com.loom.storage.repository.SessionRepository;
 import com.loom.storage.repository.WorkflowRepository;
+import com.loom.storage.repository.WorkspaceKnowledgeRepository;
 import com.loom.transport.SSEManager;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -36,6 +40,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -71,6 +76,7 @@ public class WorkflowEngine {
     private final WorkflowRepository workflowRepository;
     private final AgentExecutionRepository executionRepository;
     private final SSEManager sseManager;
+    private final WorkspaceKnowledgeRepository knowledgeRepository;
     private final ObjectMapper mapper = new ObjectMapper();
 
     /** Prevents duplicate concurrent runs for the same session. */
@@ -82,14 +88,11 @@ public class WorkflowEngine {
     /** Separate single-thread pool used to run individual nodes with timeout. */
     private final ExecutorService nodeExecutor;
 
+    /** Thread pool used to dispatch worker nodes in parallel during SUPERVISOR execution. */
+    private final ExecutorService workerExecutor;
+
     /**
      * Constructs a WorkflowEngine with production-ready bounded thread pools.
-     *
-     * <p>Creates a workflow executor (core 4, max 20, queue 100) for session-level concurrency and
-     * a node executor (core 4, max 20, queue 200) for per-node timeout isolation. Both use {@link
-     * java.util.concurrent.ThreadPoolExecutor.AbortPolicy} so rejected submissions surface as
-     * {@link java.util.concurrent.RejectedExecutionException} rather than running on the caller's
-     * thread.
      *
      * @param agentRuntime runtime used to execute individual workflow nodes
      * @param stateManager tracker for per-node execution status
@@ -98,6 +101,7 @@ public class WorkflowEngine {
      * @param workflowRepository repository for loading workflow definitions
      * @param executionRepository repository for persisting agent execution records
      * @param sseManager manager used to broadcast SSE events
+     * @param knowledgeRepository repository for fetching workspace knowledge by session
      */
     public WorkflowEngine(
             AgentRuntime agentRuntime,
@@ -106,7 +110,8 @@ public class WorkflowEngine {
             SessionRepository sessionRepository,
             WorkflowRepository workflowRepository,
             AgentExecutionRepository executionRepository,
-            SSEManager sseManager) {
+            SSEManager sseManager,
+            WorkspaceKnowledgeRepository knowledgeRepository) {
         this.agentRuntime = agentRuntime;
         this.stateManager = stateManager;
         this.graphResolver = graphResolver;
@@ -114,6 +119,7 @@ public class WorkflowEngine {
         this.workflowRepository = workflowRepository;
         this.executionRepository = executionRepository;
         this.sseManager = sseManager;
+        this.knowledgeRepository = knowledgeRepository;
 
         ThreadFactory wfFactory =
                 r -> {
@@ -141,6 +147,21 @@ public class WorkflowEngine {
                 new ThreadPoolExecutor(
                         4,
                         20,
+                        60L,
+                        TimeUnit.SECONDS,
+                        new LinkedBlockingQueue<>(200),
+                        nodeFactory,
+                        new ThreadPoolExecutor.AbortPolicy());
+
+        String workerThreadsEnv = System.getenv("LOOM_WORKER_THREADS");
+        int workerThreads =
+                (workerThreadsEnv != null && !workerThreadsEnv.isBlank())
+                        ? Integer.parseInt(workerThreadsEnv)
+                        : 4;
+        this.workerExecutor =
+                new ThreadPoolExecutor(
+                        workerThreads,
+                        workerThreads,
                         60L,
                         TimeUnit.SECONDS,
                         new LinkedBlockingQueue<>(200),
@@ -174,6 +195,36 @@ public class WorkflowEngine {
             SSEManager sseManager,
             ExecutorService executor,
             ExecutorService nodeExecutor) {
+        this(
+                agentRuntime,
+                stateManager,
+                graphResolver,
+                sessionRepository,
+                workflowRepository,
+                executionRepository,
+                sseManager,
+                executor,
+                nodeExecutor,
+                null,
+                executor);
+    }
+
+    /**
+     * Package-private constructor for tests that also need the knowledgeRepository and
+     * workerExecutor (used by SUPERVISOR tests).
+     */
+    WorkflowEngine(
+            AgentRuntime agentRuntime,
+            StateManager stateManager,
+            GraphResolver graphResolver,
+            SessionRepository sessionRepository,
+            WorkflowRepository workflowRepository,
+            AgentExecutionRepository executionRepository,
+            SSEManager sseManager,
+            ExecutorService executor,
+            ExecutorService nodeExecutor,
+            WorkspaceKnowledgeRepository knowledgeRepository,
+            ExecutorService workerExecutor) {
         this.agentRuntime = agentRuntime;
         this.stateManager = stateManager;
         this.graphResolver = graphResolver;
@@ -183,22 +234,18 @@ public class WorkflowEngine {
         this.sseManager = sseManager;
         this.executor = executor;
         this.nodeExecutor = nodeExecutor;
+        this.knowledgeRepository = knowledgeRepository;
+        this.workerExecutor = workerExecutor;
     }
 
     /**
      * Synchronous execution of the workflow for the given session. Intended to be called from a
      * background thread via {@link #runAsync}.
      *
-     * <p>Loads the session and workflow, resolves the execution plan, then iterates nodes in
-     * topological order. Only condition-activated nodes are executed. After the loop, derives the
-     * terminal {@link SessionStatus} (COMPLETED / PARTIAL / FAILED) and persists it.
-     *
      * @param sessionId id of the session to execute
      * @param inputContext initial prompt or context string passed to the first worker node
      */
     public void run(String sessionId, String inputContext) {
-        long timeoutSeconds = nodeTimeoutSeconds();
-
         // 1. Load session
         Optional<Session> sessionOpt = sessionRepository.findById(sessionId);
         if (sessionOpt.isEmpty()) {
@@ -230,29 +277,42 @@ public class WorkflowEngine {
             return;
         }
 
-        // 4. Set session to RUNNING
+        // 4. Branch on plan type
+        if (plan instanceof SupervisorExecutionPlan sup) {
+            runSupervisor(session, sup, inputContext);
+        } else {
+            runChain(session, plan, inputContext);
+        }
+    }
+
+    // ── CHAIN execution path ──────────────────────────────────────────────────
+
+    private void runChain(Session session, ExecutionPlan plan, String inputContext) {
+        long timeoutSeconds = nodeTimeoutSeconds();
+        String sessionId = session.getId();
+
+        // Set session to RUNNING
         session.setStatus(SessionStatus.RUNNING);
         sessionRepository.save(session);
 
-        // 5. Initialise all nodes as PENDING
+        // Initialise all nodes as PENDING
         for (WorkflowNode node : plan.getOrderedNodes()) {
             stateManager.setStatus(sessionId, node.getId(), AgentExecutionStatus.PENDING);
         }
 
-        // 6. Broadcast SESSION_STARTED
+        // Broadcast SESSION_STARTED
         broadcast(sessionId, EventType.SESSION_STARTED, Map.of());
 
-        // 7. nodeContextMap: carry output→input per node
+        // nodeContextMap: carry output→input per node
         Map<String, String> nodeContextMap = new HashMap<>();
         WorkflowNode startNode = plan.getOrderedNodes().get(0);
         nodeContextMap.put(startNode.getId(), inputContext);
 
         // activatedNodes: tracks which nodes are eligible to run based on edge conditions.
-        // The START node is always activated.
         Set<String> activatedNodes = new HashSet<>();
         activatedNodes.add(startNode.getId());
 
-        // 8. Execute nodes in topological order
+        // Execute nodes in topological order
         for (WorkflowNode node : plan.getOrderedNodes()) {
             NodeType type = node.getNodeType();
             final String nodeId = node.getId();
@@ -260,7 +320,6 @@ public class WorkflowEngine {
             if (type == NodeType.START) {
                 stateManager.setStatus(sessionId, nodeId, AgentExecutionStatus.COMPLETED);
                 broadcast(sessionId, EventType.NODE_COMPLETED, Map.of("nodeId", nodeId));
-                // Activate successors reachable via START's outgoing edges
                 List<WorkflowNode> nextNodes =
                         stateManager.resolveNextNodes(
                                 sessionId, nodeId, plan, AgentExecutionStatus.COMPLETED);
@@ -273,7 +332,6 @@ public class WorkflowEngine {
             }
 
             if (type == NodeType.END) {
-                // Only execute END if it was activated via an eligible edge
                 if (!activatedNodes.contains(nodeId)) {
                     continue;
                 }
@@ -299,7 +357,6 @@ public class WorkflowEngine {
                 String output = future.get(timeoutSeconds, TimeUnit.SECONDS);
                 stateManager.setStatus(sessionId, nodeId, AgentExecutionStatus.COMPLETED);
                 broadcast(sessionId, EventType.NODE_COMPLETED, Map.of("nodeId", nodeId));
-                // Activate condition-matched successors and carry output as their context
                 List<WorkflowNode> nextNodes =
                         stateManager.resolveNextNodes(
                                 sessionId, nodeId, plan, AgentExecutionStatus.COMPLETED);
@@ -315,7 +372,6 @@ public class WorkflowEngine {
                         sessionId,
                         EventType.NODE_FAILED,
                         Map.of("nodeId", nodeId, "reason", "timeout"));
-                // Activate ON_FAILURE successors
                 List<WorkflowNode> nextNodes =
                         stateManager.resolveNextNodes(
                                 sessionId, nodeId, plan, AgentExecutionStatus.FAILED);
@@ -335,7 +391,6 @@ public class WorkflowEngine {
                         sessionId,
                         EventType.NODE_FAILED,
                         Map.of("nodeId", nodeId, "reason", reason));
-                // Activate ON_FAILURE successors
                 List<WorkflowNode> nextNodes =
                         stateManager.resolveNextNodes(
                                 sessionId, nodeId, plan, AgentExecutionStatus.FAILED);
@@ -347,7 +402,7 @@ public class WorkflowEngine {
             }
         }
 
-        // 9. Compute terminal status (exclude START/END from counts)
+        // Compute terminal status (exclude START/END from counts)
         long completedCount =
                 plan.getOrderedNodes().stream()
                         .filter(
@@ -380,17 +435,214 @@ public class WorkflowEngine {
             terminalStatus = SessionStatus.PARTIAL;
         }
 
-        // 10. Persist terminal session state
         session.setStatus(terminalStatus);
         session.setCompletedAt(System.currentTimeMillis());
         sessionRepository.save(session);
 
-        // 11. Broadcast terminal event
         EventType terminalEvent =
                 (terminalStatus == SessionStatus.COMPLETED)
                         ? EventType.SESSION_COMPLETED
                         : EventType.SESSION_FAILED;
         broadcast(sessionId, terminalEvent, Map.of());
+    }
+
+    // ── SUPERVISOR execution path ─────────────────────────────────────────────
+
+    private void runSupervisor(Session session, SupervisorExecutionPlan plan, String inputContext) {
+        String sessionId = session.getId();
+        WorkflowNode supervisorNode = plan.getSupervisorNode();
+
+        // Set session to RUNNING
+        session.setStatus(SessionStatus.RUNNING);
+        sessionRepository.save(session);
+
+        // Initialise all nodes as PENDING (supervisor + workers)
+        for (WorkflowNode node : plan.getOrderedNodes()) {
+            stateManager.setStatus(sessionId, node.getId(), AgentExecutionStatus.PENDING);
+        }
+
+        broadcast(sessionId, EventType.SESSION_STARTED, Map.of());
+
+        List<WorkspaceKnowledge> workerReports = Collections.emptyList();
+        int iteration = 0;
+        boolean done = false;
+        boolean parseFailed = false;
+        boolean anyWorkerFailed = false;
+
+        while (iteration < plan.getMaxIterations() && !done) {
+            // --- SUPERVISOR TURN ---
+            String supervisorCtx = buildSupervisorContext(inputContext, workerReports, iteration);
+            broadcast(sessionId, EventType.NODE_RUNNING, Map.of("nodeId", supervisorNode.getId()));
+            stateManager.setStatus(sessionId, supervisorNode.getId(), AgentExecutionStatus.RUNNING);
+
+            String supervisorOutput;
+            try {
+                supervisorOutput =
+                        agentRuntime.executeNode(sessionId, supervisorNode, supervisorCtx);
+                stateManager.setStatus(
+                        sessionId, supervisorNode.getId(), AgentExecutionStatus.COMPLETED);
+                broadcast(
+                        sessionId,
+                        EventType.NODE_COMPLETED,
+                        Map.of("nodeId", supervisorNode.getId()));
+            } catch (Exception ex) {
+                stateManager.setStatus(
+                        sessionId, supervisorNode.getId(), AgentExecutionStatus.FAILED);
+                broadcast(
+                        sessionId, EventType.NODE_FAILED, Map.of("nodeId", supervisorNode.getId()));
+                parseFailed = true;
+                break;
+            }
+
+            Optional<SupervisorResponse> parsedOpt = parseSupervisorResponse(supervisorOutput);
+            if (parsedOpt.isEmpty()) {
+                log.warn("could not parse SupervisorResponse for session {}", sessionId);
+                parseFailed = true;
+                break;
+            }
+
+            SupervisorResponse response = parsedOpt.get();
+            if (response.isDone()) {
+                done = true;
+                break;
+            }
+
+            // --- WORKER DISPATCH BATCH ---
+            List<String> toDispatch =
+                    response.getDispatchTo() != null ? response.getDispatchTo() : List.of();
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
+            final boolean[] workerFailedRef = {false};
+
+            for (String nodeId : toDispatch) {
+                WorkflowNode workerNode = plan.getNode(nodeId);
+                if (workerNode == null) {
+                    log.warn(
+                            "runSupervisor: dispatcher returned unknown nodeId '{}', skipping",
+                            nodeId);
+                    continue;
+                }
+                CompletableFuture<Void> f =
+                        CompletableFuture.runAsync(
+                                () -> {
+                                    broadcast(
+                                            sessionId,
+                                            EventType.NODE_RUNNING,
+                                            Map.of("nodeId", workerNode.getId()));
+                                    stateManager.setStatus(
+                                            sessionId,
+                                            workerNode.getId(),
+                                            AgentExecutionStatus.RUNNING);
+                                    try {
+                                        agentRuntime.executeNode(
+                                                sessionId, workerNode, inputContext);
+                                        stateManager.setStatus(
+                                                sessionId,
+                                                workerNode.getId(),
+                                                AgentExecutionStatus.COMPLETED);
+                                        broadcast(
+                                                sessionId,
+                                                EventType.NODE_COMPLETED,
+                                                Map.of("nodeId", workerNode.getId()));
+                                    } catch (Exception e) {
+                                        stateManager.setStatus(
+                                                sessionId,
+                                                workerNode.getId(),
+                                                AgentExecutionStatus.FAILED);
+                                        String reason =
+                                                e.getMessage() != null
+                                                        ? e.getMessage()
+                                                        : e.getClass().getSimpleName();
+                                        broadcast(
+                                                sessionId,
+                                                EventType.NODE_FAILED,
+                                                Map.of(
+                                                        "nodeId",
+                                                        workerNode.getId(),
+                                                        "reason",
+                                                        reason));
+                                        workerFailedRef[0] = true;
+                                    }
+                                },
+                                workerExecutor);
+                futures.add(f);
+            }
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            if (workerFailedRef[0]) {
+                anyWorkerFailed = true;
+            }
+
+            workerReports =
+                    knowledgeRepository != null
+                            ? knowledgeRepository.findBySessionId(sessionId)
+                            : Collections.emptyList();
+            broadcast(
+                    sessionId,
+                    EventType.WORKFLOW_STATE_CHANGE,
+                    Map.of("iteration", iteration, "dispatchedTo", toDispatch));
+            iteration++;
+        }
+
+        // --- COMPUTE TERMINAL STATUS ---
+        SessionStatus terminalStatus;
+        if (done && !anyWorkerFailed && !parseFailed) {
+            terminalStatus = SessionStatus.COMPLETED;
+        } else if (parseFailed || iteration >= plan.getMaxIterations()) {
+            terminalStatus = SessionStatus.PARTIAL;
+        } else if (anyWorkerFailed) {
+            terminalStatus = SessionStatus.PARTIAL;
+        } else {
+            terminalStatus = SessionStatus.COMPLETED;
+        }
+
+        session.setStatus(terminalStatus);
+        session.setCompletedAt(System.currentTimeMillis());
+        sessionRepository.save(session);
+
+        EventType terminalEvent =
+                (terminalStatus == SessionStatus.COMPLETED)
+                        ? EventType.SESSION_COMPLETED
+                        : EventType.SESSION_FAILED;
+        broadcast(sessionId, terminalEvent, Map.of());
+    }
+
+    // ── supervisor helpers ────────────────────────────────────────────────────
+
+    private Optional<SupervisorResponse> parseSupervisorResponse(String rawOutput) {
+        if (rawOutput == null || rawOutput.isBlank()) {
+            return Optional.empty();
+        }
+        int lastOpen = rawOutput.lastIndexOf('{');
+        int lastClose = rawOutput.lastIndexOf('}');
+        if (lastOpen < 0 || lastClose < 0 || lastClose < lastOpen) {
+            return Optional.empty();
+        }
+        String json = rawOutput.substring(lastOpen, lastClose + 1);
+        try {
+            SupervisorResponse resp = mapper.readValue(json, SupervisorResponse.class);
+            return Optional.of(resp);
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
+    private String buildSupervisorContext(
+            String goal, List<WorkspaceKnowledge> reports, int iteration) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("GOAL: ").append(goal).append("\n\n");
+        sb.append("ITERATION: ").append(iteration).append("\n\n");
+        if (reports.isEmpty()) {
+            sb.append("No worker reports yet.\n");
+        } else {
+            sb.append("WORKER REPORTS:\n");
+            for (WorkspaceKnowledge r : reports) {
+                sb.append("- ")
+                        .append(r.getTitle())
+                        .append(": ")
+                        .append(r.getContent())
+                        .append("\n");
+            }
+        }
+        return sb.toString();
     }
 
     /**
@@ -433,11 +685,6 @@ public class WorkflowEngine {
     /**
      * Sets all condition-matched successor nodes to PENDING and broadcasts {@link
      * com.loom.event.EventType#NODE_WAITING} for each, so clients can show them as queued.
-     *
-     * @param sessionId id of the active session
-     * @param fromNodeId id of the node that just completed or failed
-     * @param plan the current execution plan
-     * @param status the terminal status of {@code fromNodeId}, used to evaluate edge conditions
      */
     private void propagateWaiting(
             String sessionId, String fromNodeId, ExecutionPlan plan, AgentExecutionStatus status) {
@@ -452,9 +699,6 @@ public class WorkflowEngine {
     /**
      * Transitions the session to FAILED status, sets {@code completedAt}, persists it, and
      * broadcasts {@link com.loom.event.EventType#SESSION_FAILED}.
-     *
-     * @param session the session to fail
-     * @param reason human-readable description of the failure
      */
     private void failSession(Session session, String reason) {
         session.setStatus(SessionStatus.FAILED);
@@ -466,10 +710,6 @@ public class WorkflowEngine {
     /**
      * Broadcasts a {@link WorkflowEvent} to all connected SSE clients. Exceptions are swallowed and
      * logged so that broadcast failures never interrupt session execution.
-     *
-     * @param sessionId id of the session associated with the event
-     * @param type the event type to broadcast
-     * @param data additional key/value payload included in the event
      */
     private void broadcast(String sessionId, EventType type, Map<String, Object> data) {
         try {
@@ -489,8 +729,6 @@ public class WorkflowEngine {
      * Returns the effective node timeout in seconds. Prefers {@link #nodeTimeoutOverride} when
      * positive, then the {@code LOOM_NODE_TIMEOUT_SECONDS} environment variable, then {@link
      * #DEFAULT_NODE_TIMEOUT_SECONDS}.
-     *
-     * @return timeout in seconds to apply to each node's {@link java.util.concurrent.Future#get}
      */
     long nodeTimeoutSeconds() {
         if (nodeTimeoutOverride > 0) return nodeTimeoutOverride;

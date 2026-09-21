@@ -229,4 +229,35 @@ class StateManagerTest {
                 sm.resolveNextNodes("s13", "start", plan, AgentExecutionStatus.FAILED);
         assertThat(next).containsExactly(end);
     }
+
+    // ── getIterationCount ─────────────────────────────────────────────────────
+
+    @Test
+    void getIterationCountReturnsZeroBeforeAnyRunningCall() {
+        assertThat(sm.getIterationCount("session-iter-0", "supervisor")).isEqualTo(0);
+    }
+
+    @Test
+    void getIterationCountReturnsOneAfterOneRunningCall() {
+        sm.setStatus("session-iter-1", "supervisor", AgentExecutionStatus.RUNNING);
+        assertThat(sm.getIterationCount("session-iter-1", "supervisor")).isEqualTo(1);
+    }
+
+    @Test
+    void getIterationCountReturnsThreeAfterThreeRunningCalls() {
+        sm.setStatus("session-iter-3", "supervisor", AgentExecutionStatus.RUNNING);
+        sm.setStatus("session-iter-3", "supervisor", AgentExecutionStatus.RUNNING);
+        sm.setStatus("session-iter-3", "supervisor", AgentExecutionStatus.RUNNING);
+        assertThat(sm.getIterationCount("session-iter-3", "supervisor")).isEqualTo(3);
+    }
+
+    @Test
+    void getIterationCountTracksSessionsIndependently() {
+        sm.setStatus("s-a", "supervisor", AgentExecutionStatus.RUNNING);
+        sm.setStatus("s-a", "supervisor", AgentExecutionStatus.RUNNING);
+        sm.setStatus("s-b", "supervisor", AgentExecutionStatus.RUNNING);
+
+        assertThat(sm.getIterationCount("s-a", "supervisor")).isEqualTo(2);
+        assertThat(sm.getIterationCount("s-b", "supervisor")).isEqualTo(1);
+    }
 }

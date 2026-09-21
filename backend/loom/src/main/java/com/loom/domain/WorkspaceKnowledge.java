@@ -16,15 +16,12 @@
  */
 package com.loom.domain;
 
+import lombok.Data;
+
 import java.util.List;
 import java.util.UUID;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.Setter;
 
-@Getter
-@Setter
-@EqualsAndHashCode
+@Data
 public class WorkspaceKnowledge {
 
     private String id;

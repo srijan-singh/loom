@@ -16,10 +16,11 @@
  */
 package com.loom.llm;
 
-import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.util.Map;
 
 /**
  * Describes a single MCP tool that can be offered to the LLM. The {@code inputSchema} follows JSON

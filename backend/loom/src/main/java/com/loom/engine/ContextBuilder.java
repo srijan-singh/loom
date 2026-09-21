@@ -16,14 +16,15 @@
  */
 package com.loom.engine;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 import com.loom.domain.AgentDefinition;
 import com.loom.domain.Session;
 import com.loom.domain.WorkspaceKnowledge;
 import com.loom.llm.LLMRequest;
 import com.loom.llm.MCPToolDefinition;
 import com.loom.mcp.MCPClient;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Assembles the {@link LLMRequest} for a single agent turn from its definition, session, input

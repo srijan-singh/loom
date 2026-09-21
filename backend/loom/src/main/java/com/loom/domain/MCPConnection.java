@@ -16,15 +16,12 @@
  */
 package com.loom.domain;
 
+import lombok.Data;
+
 import java.util.Map;
 import java.util.UUID;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.Setter;
 
-@Getter
-@Setter
-@EqualsAndHashCode
+@Data
 public class MCPConnection {
 
     private String id;

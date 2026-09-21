@@ -16,13 +16,15 @@
  */
 package com.loom.transport.routes;
 
-import com.loom.domain.MCPConnection;
-import com.loom.domain.MCPStatus;
-import com.loom.storage.repository.MCPConnectionRepository;
 import io.javalin.router.JavalinDefaultRoutingApi;
+
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import com.loom.domain.MCPConnection;
+import com.loom.domain.MCPStatus;
+import com.loom.storage.repository.MCPConnectionRepository;
 
 public class MCPRoutes {
 
@@ -81,7 +83,11 @@ public class MCPRoutes {
                 });
     }
 
-    /** Public projection of {@link MCPConnection} that omits the sensitive {@code config} field. */
+    /**
+     * Public projection of {@link MCPConnection} that omits the sensitive {@code config} field.
+     * Fields are intentionally public and final — this is an immutable JSON view object.
+     */
+    @SuppressWarnings("checkstyle:VisibilityModifier")
     public static final class MCPConnectionView {
         public final String id;
         public final String name;

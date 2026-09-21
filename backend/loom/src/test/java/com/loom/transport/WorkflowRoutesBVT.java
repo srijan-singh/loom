@@ -18,6 +18,15 @@ package com.loom.transport;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loom.domain.SessionStatus;
@@ -30,14 +39,6 @@ import com.loom.mcp.MCPClient;
 import com.loom.storage.DatabaseManager;
 import com.loom.storage.TestFixtures;
 import com.loom.storage.repository.*;
-import java.io.IOException;
-import java.net.ServerSocket;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import org.junit.jupiter.api.*;
 
 /** BVT for WorkflowRoutes CRUD and enriched SessionRoutes. */

@@ -16,14 +16,11 @@
  */
 package com.loom.domain;
 
-import java.util.UUID;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Data;
 
-@Getter
-@Setter
-@EqualsAndHashCode
+import java.util.UUID;
+
+@Data
 public class AgentExecution {
 
     private String id;

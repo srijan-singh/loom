@@ -18,15 +18,16 @@ package com.loom.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 import com.loom.domain.EdgeCondition;
 import com.loom.domain.NodeType;
 import com.loom.domain.SessionStatus;
 import com.loom.domain.WorkflowEdge;
 import com.loom.domain.WorkflowNode;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

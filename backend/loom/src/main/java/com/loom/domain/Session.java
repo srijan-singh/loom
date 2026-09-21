@@ -16,8 +16,9 @@
  */
 package com.loom.domain;
 
-import java.util.UUID;
 import lombok.Data;
+
+import java.util.UUID;
 
 @Data
 public class Session {

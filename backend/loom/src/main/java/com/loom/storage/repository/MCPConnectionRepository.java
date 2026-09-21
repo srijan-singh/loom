@@ -16,11 +16,12 @@
  */
 package com.loom.storage.repository;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
 import com.loom.domain.MCPConnection;
 import com.loom.domain.MCPStatus;
 import com.loom.storage.DatabaseManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 
 public class MCPConnectionRepository extends BaseRepository<MCPConnection> {
 

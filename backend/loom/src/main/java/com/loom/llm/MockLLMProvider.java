@@ -16,9 +16,10 @@
  */
 package com.loom.llm;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.List;
 import java.util.function.Consumer;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Deterministic stand-in used when no real API key is configured. Streams a short canned reply

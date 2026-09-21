@@ -146,7 +146,8 @@ public enum LoomEnv {
     }
 
     /**
-     * Parses the value (or built-in default) as a {@code long}.
+     * Parses the value (or built-in default) as a {@code long}. Non-positive values are rejected
+     * and the default is used instead.
      *
      * @throws IllegalStateException if neither the env var nor a default is available
      */
@@ -154,7 +155,8 @@ public enum LoomEnv {
         String raw = get();
         if (raw != null) {
             try {
-                return Long.parseLong(raw.trim());
+                long parsed = Long.parseLong(raw.trim());
+                if (parsed > 0) return parsed;
             } catch (NumberFormatException ignored) {
                 // fall through to default
             }

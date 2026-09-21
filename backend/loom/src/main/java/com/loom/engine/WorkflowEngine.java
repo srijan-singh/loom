@@ -549,95 +549,134 @@ public class WorkflowEngine {
             }
 
             // Submit each worker with per-node timeout; collect futures for bounded join
-            List<CompletableFuture<Void>> futures = new ArrayList<>();
+            List<Future<?>> outerFutures = new ArrayList<>();
             final boolean[] workerFailedRef = {false};
 
             for (String nodeId : toDispatch) {
                 WorkflowNode workerNode = plan.getNode(nodeId);
-                CompletableFuture<Void> f =
-                        CompletableFuture.runAsync(
-                                () -> {
-                                    broadcast(
-                                            sessionId,
-                                            EventType.NODE_RUNNING,
-                                            Map.of("nodeId", workerNode.getId()));
-                                    stateManager.setStatus(
-                                            sessionId,
-                                            workerNode.getId(),
-                                            AgentExecutionStatus.RUNNING);
-                                    Future<String> workerFuture =
-                                            nodeExecutor.submit(
-                                                    () ->
-                                                            agentRuntime.executeNode(
-                                                                    sessionId,
-                                                                    workerNode,
-                                                                    inputContext));
-                                    try {
-                                        workerFuture.get(timeoutSeconds, TimeUnit.SECONDS);
-                                        stateManager.setStatus(
-                                                sessionId,
-                                                workerNode.getId(),
-                                                AgentExecutionStatus.COMPLETED);
-                                        broadcast(
-                                                sessionId,
-                                                EventType.NODE_COMPLETED,
-                                                Map.of("nodeId", workerNode.getId()));
-                                    } catch (TimeoutException te) {
-                                        workerFuture.cancel(true);
-                                        stateManager.setStatus(
-                                                sessionId,
-                                                workerNode.getId(),
-                                                AgentExecutionStatus.FAILED);
-                                        broadcast(
-                                                sessionId,
-                                                EventType.NODE_FAILED,
-                                                Map.of(
-                                                        "nodeId",
-                                                        workerNode.getId(),
-                                                        "reason",
-                                                        "timeout"));
-                                        workerFailedRef[0] = true;
-                                    } catch (Exception e) {
-                                        stateManager.setStatus(
-                                                sessionId,
-                                                workerNode.getId(),
-                                                AgentExecutionStatus.FAILED);
-                                        Throwable cause = e.getCause() != null ? e.getCause() : e;
-                                        String reason =
-                                                cause.getMessage() != null
-                                                        ? cause.getMessage()
-                                                        : cause.getClass().getSimpleName();
-                                        broadcast(
-                                                sessionId,
-                                                EventType.NODE_FAILED,
-                                                Map.of(
-                                                        "nodeId",
-                                                        workerNode.getId(),
-                                                        "reason",
-                                                        reason));
-                                        workerFailedRef[0] = true;
+                final Future<String>[] workerFutureHolder = new Future[1];
+                Runnable task =
+                        () -> {
+                            broadcast(
+                                    sessionId,
+                                    EventType.NODE_RUNNING,
+                                    Map.of("nodeId", workerNode.getId()));
+                            stateManager.setStatus(
+                                    sessionId,
+                                    workerNode.getId(),
+                                    AgentExecutionStatus.RUNNING);
+                            Future<String> workerFuture =
+                                    nodeExecutor.submit(
+                                            () ->
+                                                    agentRuntime.executeNode(
+                                                            sessionId,
+                                                            workerNode,
+                                                            inputContext));
+                            synchronized (workerFutureHolder) {
+                                workerFutureHolder[0] = workerFuture;
+                            }
+                            try {
+                                workerFuture.get(timeoutSeconds, TimeUnit.SECONDS);
+                                stateManager.setStatus(
+                                        sessionId,
+                                        workerNode.getId(),
+                                        AgentExecutionStatus.COMPLETED);
+                                broadcast(
+                                        sessionId,
+                                        EventType.NODE_COMPLETED,
+                                        Map.of("nodeId", workerNode.getId()));
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                                synchronized (workerFutureHolder) {
+                                    if (workerFutureHolder[0] != null) {
+                                        workerFutureHolder[0].cancel(true);
                                     }
-                                },
-                                workerExecutor);
-                futures.add(f);
+                                }
+                                stateManager.setStatus(
+                                        sessionId,
+                                        workerNode.getId(),
+                                        AgentExecutionStatus.FAILED);
+                                broadcast(
+                                        sessionId,
+                                        EventType.NODE_FAILED,
+                                        Map.of(
+                                                "nodeId",
+                                                workerNode.getId(),
+                                                "reason",
+                                                "interrupted"));
+                                workerFailedRef[0] = true;
+                            } catch (TimeoutException te) {
+                                workerFuture.cancel(true);
+                                stateManager.setStatus(
+                                        sessionId,
+                                        workerNode.getId(),
+                                        AgentExecutionStatus.FAILED);
+                                broadcast(
+                                        sessionId,
+                                        EventType.NODE_FAILED,
+                                        Map.of(
+                                                "nodeId",
+                                                workerNode.getId(),
+                                                "reason",
+                                                "timeout"));
+                                workerFailedRef[0] = true;
+                            } catch (Exception e) {
+                                stateManager.setStatus(
+                                        sessionId,
+                                        workerNode.getId(),
+                                        AgentExecutionStatus.FAILED);
+                                Throwable cause = e.getCause() != null ? e.getCause() : e;
+                                String reason =
+                                        cause.getMessage() != null
+                                                ? cause.getMessage()
+                                                : cause.getClass().getSimpleName();
+                                broadcast(
+                                        sessionId,
+                                        EventType.NODE_FAILED,
+                                        Map.of(
+                                                "nodeId",
+                                                workerNode.getId(),
+                                                "reason",
+                                                reason));
+                                workerFailedRef[0] = true;
+                            }
+                        };
+                try {
+                    outerFutures.add(workerExecutor.submit(task));
+                } catch (RejectedExecutionException ree) {
+                    log.warn(
+                            "runSupervisor: workerExecutor rejected submission for node '{}' in session {}",
+                            nodeId,
+                            sessionId);
+                    stateManager.setStatus(
+                            sessionId, workerNode.getId(), AgentExecutionStatus.FAILED);
+                    broadcast(
+                            sessionId,
+                            EventType.NODE_FAILED,
+                            Map.of("nodeId", workerNode.getId(), "reason", "rejected"));
+                    workerFailedRef[0] = true;
+                }
             }
             // Bounded join: wait at most (workers * timeout) so the loop cannot block forever
             long batchDeadline =
                     System.currentTimeMillis() + (toDispatch.size() + 1) * timeoutSeconds * 1000L;
             try {
-                CompletableFuture<Void> all =
-                        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
-                long remaining = batchDeadline - System.currentTimeMillis();
-                if (remaining > 0) {
-                    all.get(remaining, TimeUnit.MILLISECONDS);
-                } else {
-                    all.cancel(true);
+                for (Future<?> f : outerFutures) {
+                    long remaining = batchDeadline - System.currentTimeMillis();
+                    if (remaining > 0) {
+                        f.get(remaining, TimeUnit.MILLISECONDS);
+                    } else {
+                        f.cancel(true);
+                    }
                 }
             } catch (TimeoutException bte) {
                 log.warn("runSupervisor: worker batch timed out for session {}", sessionId);
+                for (Future<?> f : outerFutures) {
+                    f.cancel(true);
+                }
                 anyWorkerFailed = true;
             } catch (Exception ignored) {
-                // individual worker failures are already recorded inside the futures
+                // individual worker failures are already recorded inside the task
             }
             if (workerFailedRef[0]) {
                 anyWorkerFailed = true;

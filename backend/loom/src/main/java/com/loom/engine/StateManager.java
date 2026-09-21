@@ -25,6 +25,7 @@ import com.loom.storage.repository.AgentExecutionRepository;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Tracks the per-node execution status for all active workflow sessions.
@@ -39,6 +40,10 @@ public class StateManager {
 
     /** In-memory index keyed by "sessionId:nodeId" for fast lookup and upsert. */
     private final ConcurrentHashMap<String, AgentExecution> index = new ConcurrentHashMap<>();
+
+    /** Counts how many times setStatus(RUNNING) has been called per "sessionId:nodeId" key. */
+    private final ConcurrentHashMap<String, AtomicInteger> iterationCounts =
+            new ConcurrentHashMap<>();
 
     /**
      * Constructs a StateManager backed by the given repository.
@@ -70,9 +75,7 @@ public class StateManager {
         if (status == AgentExecutionStatus.COMPLETED || status == AgentExecutionStatus.FAILED) {
             AgentExecution cached = index.get(key);
             AgentExecution fresh =
-                    executionRepository
-                            .findBySessionIdAndNodeId(sessionId, nodeId)
-                            .orElse(cached);
+                    executionRepository.findBySessionIdAndNodeId(sessionId, nodeId).orElse(cached);
             AgentExecution target;
             if (fresh != null) {
                 target = fresh;
@@ -103,6 +106,9 @@ public class StateManager {
                             }
                             return e;
                         });
+        if (status == AgentExecutionStatus.RUNNING) {
+            iterationCounts.computeIfAbsent(key, k -> new AtomicInteger(0)).incrementAndGet();
+        }
         executionRepository.save(exec);
     }
 
@@ -118,6 +124,20 @@ public class StateManager {
         }
         AgentExecutionStatus status = exec.getStatus();
         return status != null ? status : AgentExecutionStatus.PENDING;
+    }
+
+    /**
+     * Returns the number of times {@code setStatus(sessionId, supervisorNodeId, RUNNING)} has been
+     * called. Used by {@code WorkflowEngine#runSupervisor} to enforce {@code maxIterations}.
+     *
+     * @param sessionId the session to query
+     * @param supervisorNodeId the supervisor node id
+     * @return iteration count, or {@code 0} if no RUNNING call has been made yet
+     */
+    public int getIterationCount(String sessionId, String supervisorNodeId) {
+        String key = sessionId + ":" + supervisorNodeId;
+        AtomicInteger counter = iterationCounts.get(key);
+        return counter == null ? 0 : counter.get();
     }
 
     /**

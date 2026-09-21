@@ -35,6 +35,12 @@ public class WorkspaceKnowledgeRepository extends BaseRepository<WorkspaceKnowle
     // queries
     private static final String TABLE = "workspace_knowledge";
 
+    private static final String SELECT_BY_SESSION_ID_SQL =
+            "SELECT wk.* FROM workspace_knowledge wk"
+                    + " JOIN agent_executions ae ON ae.id = wk.source_execution_id"
+                    + " WHERE ae.session_id = ?"
+                    + " ORDER BY wk.created_at ASC";
+
     private static final String SAVE =
             upsert(
                     TABLE,
@@ -49,6 +55,11 @@ public class WorkspaceKnowledgeRepository extends BaseRepository<WorkspaceKnowle
     public WorkspaceKnowledgeRepository(DatabaseManager db) {
         super(db, TABLE);
         setMapper(this::map);
+    }
+
+    public List<WorkspaceKnowledge> findBySessionId(String sessionId) {
+        return db().queryList(
+                        SELECT_BY_SESSION_ID_SQL, ps -> ps.setString(1, sessionId), this::map);
     }
 
     public List<WorkspaceKnowledge> findByWorkspaceId(String workspaceId) {

@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.loom.LoomEnv;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -82,9 +83,8 @@ public class ClaudeProvider implements LLMGateway {
     ClaudeProvider(OkHttpClient httpClient, ObjectMapper mapper) {
         this.httpClient = httpClient;
         this.mapper = mapper;
-        this.apiKey = System.getenv("ANTHROPIC_API_KEY");
-        String envModel = System.getenv("ANTHROPIC_MODEL");
-        this.model = (envModel != null && !envModel.isBlank()) ? envModel : DEFAULT_MODEL;
+        this.apiKey = LoomEnv.ANTHROPIC_API_KEY.get();
+        this.model = LoomEnv.ANTHROPIC_MODEL.getOrDefault(DEFAULT_MODEL);
     }
 
     @Override

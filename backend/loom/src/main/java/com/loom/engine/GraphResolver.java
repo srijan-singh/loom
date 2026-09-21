@@ -16,6 +16,7 @@
  */
 package com.loom.engine;
 
+import com.loom.LoomEnv;
 import com.loom.domain.NodeType;
 import com.loom.domain.WorkflowDefinition;
 import com.loom.domain.WorkflowEdge;
@@ -28,6 +29,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Validates a {@link WorkflowDefinition} and produces a topologically-ordered {@link ExecutionPlan}
@@ -54,12 +57,20 @@ public class GraphResolver {
             throw new InvalidWorkflowException("workflow must not be null");
         }
 
-        // 2. Type guard
-        if (workflow.getType() != WorkflowType.CHAIN) {
-            throw new InvalidWorkflowException("only CHAIN workflows are supported");
+        if (workflow.getType() == WorkflowType.CHAIN) {
+            return resolveChain(workflow);
+        } else if (workflow.getType() == WorkflowType.SUPERVISOR) {
+            return resolveSupervisor(workflow);
+        } else {
+            throw new InvalidWorkflowException("unsupported workflow type: " + workflow.getType());
         }
+    }
 
-        // 3. Node list guard
+    // ── CHAIN path (unchanged logic, extracted) ──────────────────────────────
+
+    private ExecutionPlan resolveChain(WorkflowDefinition workflow)
+            throws InvalidWorkflowException {
+        // Node list guard
         List<WorkflowNode> nodes = workflow.getNodes();
         if (nodes == null || nodes.isEmpty()) {
             throw new InvalidWorkflowException("workflow has no nodes");
@@ -68,7 +79,7 @@ public class GraphResolver {
         List<WorkflowEdge> edges =
                 workflow.getEdges() != null ? workflow.getEdges() : Collections.emptyList();
 
-        // 4. Build nodeById — validate each node before inserting
+        // Build nodeById — validate each node before inserting
         Map<String, WorkflowNode> nodeById = new HashMap<>();
         for (WorkflowNode node : nodes) {
             if (node == null) {
@@ -85,7 +96,7 @@ public class GraphResolver {
             nodeById.put(id, node);
         }
 
-        // 5. Build edgesByFromNode and 6. incomingCount — validate each edge before inserting
+        // Build edgesByFromNode and incomingCount — validate each edge before inserting
         Map<String, List<WorkflowEdge>> edgesByFromNode = new HashMap<>();
         Map<String, Integer> incomingCount = new HashMap<>();
         for (WorkflowNode node : nodes) {
@@ -110,7 +121,7 @@ public class GraphResolver {
             incomingCount.merge(toId, 1, Integer::sum);
         }
 
-        // 7. Validate exactly one START node
+        // Validate exactly one START node
         long startCount = nodes.stream().filter(n -> n.getNodeType() == NodeType.START).count();
         if (startCount == 0) {
             throw new InvalidWorkflowException("workflow must have exactly one START node");
@@ -120,7 +131,7 @@ public class GraphResolver {
                     "workflow must have exactly one START node, found " + startCount);
         }
 
-        // 8. Validate exactly one END node
+        // Validate exactly one END node
         long endCount = nodes.stream().filter(n -> n.getNodeType() == NodeType.END).count();
         if (endCount == 0) {
             throw new InvalidWorkflowException("workflow must have exactly one END node");
@@ -130,7 +141,7 @@ public class GraphResolver {
                     "workflow must have exactly one END node, found " + endCount);
         }
 
-        // 9. Every non-END node must have ≥ 1 outgoing edge
+        // Every non-END node must have ≥ 1 outgoing edge
         for (WorkflowNode node : nodes) {
             if (node.getNodeType() != NodeType.END && edgesByFromNode.get(node.getId()).isEmpty()) {
                 throw new InvalidWorkflowException(
@@ -138,7 +149,7 @@ public class GraphResolver {
             }
         }
 
-        // 10. Every non-START node must have ≥ 1 incoming edge
+        // Every non-START node must have ≥ 1 incoming edge
         for (WorkflowNode node : nodes) {
             if (node.getNodeType() != NodeType.START && incomingCount.get(node.getId()) == 0) {
                 throw new InvalidWorkflowException(
@@ -148,7 +159,7 @@ public class GraphResolver {
             }
         }
 
-        // 11. Kahn's topological sort
+        // Kahn's topological sort
         Queue<String> queue = new ArrayDeque<>();
         Map<String, Integer> remainingIn = new HashMap<>(incomingCount);
         for (Map.Entry<String, Integer> entry : remainingIn.entrySet()) {
@@ -173,7 +184,152 @@ public class GraphResolver {
             throw new InvalidWorkflowException("cycle detected in workflow graph");
         }
 
-        // 12. Build and return the ExecutionPlan
         return new ExecutionPlan(sorted, nodeById, edgesByFromNode);
+    }
+
+    // ── SUPERVISOR path ───────────────────────────────────────────────────────
+
+    private SupervisorExecutionPlan resolveSupervisor(WorkflowDefinition workflow)
+            throws InvalidWorkflowException {
+        // Node list guard
+        List<WorkflowNode> nodes = workflow.getNodes();
+        if (nodes == null || nodes.isEmpty()) {
+            throw new InvalidWorkflowException("workflow has no nodes");
+        }
+
+        List<WorkflowEdge> edges =
+                workflow.getEdges() != null ? workflow.getEdges() : Collections.emptyList();
+
+        // Build nodeById — same null/blank/duplicate checks as CHAIN path
+        Map<String, WorkflowNode> nodeById = new HashMap<>();
+        for (WorkflowNode node : nodes) {
+            if (node == null) {
+                throw new InvalidWorkflowException("workflow contains a null node");
+            }
+            String id = node.getId();
+            if (id == null || id.isBlank()) {
+                throw new InvalidWorkflowException(
+                        "workflow contains a node with a null or blank id");
+            }
+            if (nodeById.containsKey(id)) {
+                throw new InvalidWorkflowException("duplicate node id: '" + id + "'");
+            }
+            nodeById.put(id, node);
+        }
+
+        // Build edgesByFromNode — same unknown-endpoint checks as CHAIN path
+        Map<String, List<WorkflowEdge>> edgesByFromNode = new HashMap<>();
+        for (WorkflowNode node : nodes) {
+            edgesByFromNode.put(node.getId(), new ArrayList<>());
+        }
+        for (WorkflowEdge edge : edges) {
+            if (edge == null) {
+                throw new InvalidWorkflowException("workflow contains a null edge");
+            }
+            String fromId = edge.getFromNodeId();
+            String toId = edge.getToNodeId();
+            if (!nodeById.containsKey(fromId)) {
+                throw new InvalidWorkflowException(
+                        "edge references unknown fromNodeId: '" + fromId + "'");
+            }
+            if (!nodeById.containsKey(toId)) {
+                throw new InvalidWorkflowException(
+                        "edge references unknown toNodeId: '" + toId + "'");
+            }
+            edgesByFromNode.get(fromId).add(edge);
+        }
+
+        // Validate exactly one SUPERVISOR node
+        List<WorkflowNode> supervisorNodes =
+                nodes.stream()
+                        .filter(n -> n.getNodeType() == NodeType.SUPERVISOR)
+                        .collect(Collectors.toList());
+        if (supervisorNodes.isEmpty()) {
+            throw new InvalidWorkflowException("workflow must have exactly one SUPERVISOR node");
+        }
+        if (supervisorNodes.size() >= 2) {
+            throw new InvalidWorkflowException(
+                    "workflow must have exactly one SUPERVISOR node, found "
+                            + supervisorNodes.size());
+        }
+        WorkflowNode supervisorNode = supervisorNodes.get(0);
+
+        // Identify all WORKER nodes
+        List<WorkflowNode> workerNodes =
+                nodes.stream()
+                        .filter(n -> n.getNodeType() == NodeType.WORKER)
+                        .collect(Collectors.toList());
+
+        // Validate every WORKER has ≥ 1 incoming edge from the SUPERVISOR node
+        Set<String> supervisorTargets =
+                edges.stream()
+                        .filter(e -> supervisorNode.getId().equals(e.getFromNodeId()))
+                        .map(WorkflowEdge::getToNodeId)
+                        .collect(Collectors.toSet());
+        for (WorkflowNode worker : workerNodes) {
+            if (!supervisorTargets.contains(worker.getId())) {
+                throw new InvalidWorkflowException(
+                        "worker node '"
+                                + worker.getId()
+                                + "' has no report-back edge to the SUPERVISOR node");
+            }
+        }
+
+        // Validate no SUPERVISOR → SUPERVISOR self/loop edge
+        for (WorkflowEdge edge : edges) {
+            if (supervisorNode.getId().equals(edge.getFromNodeId())
+                    && supervisorNode.getId().equals(edge.getToNodeId())) {
+                throw new InvalidWorkflowException(
+                        "SUPERVISOR node must not have an edge to itself");
+            }
+        }
+
+        // Build dispatchEdges: supervisorId → list of target worker nodes
+        Map<String, List<WorkflowNode>> dispatchEdges = new HashMap<>();
+        List<WorkflowNode> dispatchTargets =
+                edgesByFromNode.get(supervisorNode.getId()).stream()
+                        .map(e -> nodeById.get(e.getToNodeId()))
+                        .collect(Collectors.toList());
+        dispatchEdges.put(supervisorNode.getId(), dispatchTargets);
+
+        // Build reportBackEdges: each workerId → supervisorNode
+        Map<String, WorkflowNode> reportBackEdges = new HashMap<>();
+        for (WorkflowNode worker : workerNodes) {
+            reportBackEdges.put(worker.getId(), supervisorNode);
+        }
+
+        // Read maxIterations from env; reject malformed, zero, or negative values explicitly
+        // so the caller gets an InvalidWorkflowException rather than a silent fallback.
+        String envVal = LoomEnv.LOOM_SUPERVISOR_MAX_ITER.get();
+        int maxIterations;
+        if (envVal != null) {
+            try {
+                int parsed = Integer.parseInt(envVal.trim());
+                if (parsed <= 0) {
+                    throw new InvalidWorkflowException(
+                            LoomEnv.LOOM_SUPERVISOR_MAX_ITER.key()
+                                    + " must be a positive integer, got: "
+                                    + envVal);
+                }
+                maxIterations = parsed;
+            } catch (NumberFormatException e) {
+                throw new InvalidWorkflowException(
+                        LoomEnv.LOOM_SUPERVISOR_MAX_ITER.key()
+                                + " is not a valid integer: "
+                                + envVal);
+            }
+        } else {
+            maxIterations = LoomEnv.LOOM_SUPERVISOR_MAX_ITER.getInt();
+        }
+
+        return new SupervisorExecutionPlan(
+                nodes,
+                nodeById,
+                edgesByFromNode,
+                supervisorNode,
+                workerNodes,
+                dispatchEdges,
+                reportBackEdges,
+                maxIterations);
     }
 }

@@ -1,5 +1,7 @@
 # loom
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/srijan-singh/loom)
+
 > [!NOTE]
 > **Exploring the architecture?** Browse the complete codebase index and query docs on [DeepWiki](https://deepwiki.com/srijan-singh/loom).
 

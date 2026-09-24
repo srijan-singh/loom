@@ -37,6 +37,7 @@ import com.loom.engine.StateManager;
 import com.loom.engine.WorkflowEngine;
 import com.loom.llm.MockLLMProvider;
 import com.loom.mcp.MCPClient;
+import com.loom.mcp.StubMCPClient;
 import com.loom.storage.DatabaseManager;
 import com.loom.storage.TestFixtures;
 import com.loom.storage.repository.*;
@@ -115,7 +116,7 @@ class WorkflowRoutesBVT {
         WorkspaceKnowledgeRepository knowledgeRepo = new WorkspaceKnowledgeRepository(db);
 
         SSEManager sseManager = new SSEManager();
-        MCPClient mcpClient = new MCPClient();
+        MCPClient mcpClient = new StubMCPClient();
         AgentRuntime agentRuntime =
                 new AgentRuntime(
                         new MockLLMProvider(),

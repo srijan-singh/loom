@@ -26,6 +26,7 @@ import com.loom.engine.WorkflowEngine;
 import com.loom.llm.LLMGateway;
 import com.loom.llm.LLMProviderFactory;
 import com.loom.mcp.MCPClient;
+import com.loom.mcp.StubMCPClient;
 import com.loom.storage.DatabaseManager;
 import com.loom.storage.repository.AgentExecutionRepository;
 import com.loom.storage.repository.AgentRepository;
@@ -60,7 +61,7 @@ public class Main {
         // Engine
         SSEManager sseManager = new SSEManager();
         LLMGateway llmGateway = LLMProviderFactory.create();
-        MCPClient mcpClient = new MCPClient();
+        MCPClient mcpClient = new StubMCPClient();
 
         AgentRuntime agentRuntime =
                 new AgentRuntime(

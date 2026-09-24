@@ -16,9 +16,6 @@
  */
 package com.loom.mcp;
 
-import lombok.extern.slf4j.Slf4j;
-
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -31,8 +28,7 @@ import com.loom.llm.MCPToolDefinition;
  * future MCP tool dispatch will live; callers already use it so the agentic loop compiles and runs
  * end-to-end.
  */
-@Slf4j
-public class MCPClient {
+public interface MCPClient {
 
     /**
      * Returns the list of tools available on the given MCP connection. Stub implementation — real
@@ -41,10 +37,7 @@ public class MCPClient {
      * @param mcpConnectionId the MCP connection id
      * @return empty list (no tools available in stub mode)
      */
-    public List<MCPToolDefinition> listTools(String mcpConnectionId) {
-        log.debug("MCPClient.listTools (stub): mcpConnectionId='{}'", mcpConnectionId);
-        return Collections.emptyList();
-    }
+    List<MCPToolDefinition> listTools(String mcpConnectionId);
 
     /**
      * Executes a tool call and returns a plain-text result.
@@ -53,8 +46,5 @@ public class MCPClient {
      * @param toolInput the arguments the LLM passed
      * @return a stub result string
      */
-    public String execute(String toolName, Map<String, Object> toolInput) {
-        log.info("MCPClient.execute (stub): tool='{}' input={}", toolName, toolInput);
-        return "Tool '" + toolName + "' executed (stub result).";
-    }
+    String execute(String toolName, Map<String, Object> toolInput);
 }

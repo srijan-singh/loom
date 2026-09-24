@@ -366,19 +366,19 @@ public class WorkflowEngine {
                 propagateWaiting(sessionId, nodeId, plan, AgentExecutionStatus.COMPLETED);
             } catch (TimeoutException te) {
                 future.cancel(true);
-                stateManager.setStatus(sessionId, nodeId, AgentExecutionStatus.FAILED);
+                stateManager.setStatus(sessionId, nodeId, AgentExecutionStatus.TIMED_OUT);
                 broadcast(
                         sessionId,
                         EventType.NODE_FAILED,
                         Map.of("nodeId", nodeId, "reason", "timeout"));
                 List<WorkflowNode> nextNodes =
                         stateManager.resolveNextNodes(
-                                sessionId, nodeId, plan, AgentExecutionStatus.FAILED);
+                                sessionId, nodeId, plan, AgentExecutionStatus.TIMED_OUT);
                 for (WorkflowNode next : nextNodes) {
                     activatedNodes.add(next.getId());
                     nodeContextMap.put(next.getId(), ctx);
                 }
-                propagateWaiting(sessionId, nodeId, plan, AgentExecutionStatus.FAILED);
+                propagateWaiting(sessionId, nodeId, plan, AgentExecutionStatus.TIMED_OUT);
             } catch (Exception e) {
                 stateManager.setStatus(sessionId, nodeId, AgentExecutionStatus.FAILED);
                 Throwable target = e.getCause() != null ? e.getCause() : e;
@@ -420,9 +420,12 @@ public class WorkflowEngine {
                                         n.getNodeType() != NodeType.START
                                                 && n.getNodeType() != NodeType.END)
                         .filter(
-                                n ->
-                                        stateManager.getStatus(sessionId, n.getId())
-                                                == AgentExecutionStatus.FAILED)
+                                n -> {
+                                    AgentExecutionStatus st =
+                                            stateManager.getStatus(sessionId, n.getId());
+                                    return st == AgentExecutionStatus.FAILED
+                                            || st == AgentExecutionStatus.TIMED_OUT;
+                                })
                         .count();
 
         SessionStatus terminalStatus;
@@ -497,7 +500,7 @@ public class WorkflowEngine {
             } catch (TimeoutException te) {
                 supFuture.cancel(true);
                 stateManager.setStatus(
-                        sessionId, supervisorNode.getId(), AgentExecutionStatus.FAILED);
+                        sessionId, supervisorNode.getId(), AgentExecutionStatus.TIMED_OUT);
                 broadcast(
                         sessionId,
                         EventType.NODE_FAILED,

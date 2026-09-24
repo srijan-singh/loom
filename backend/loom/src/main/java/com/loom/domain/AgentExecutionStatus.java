@@ -20,5 +20,6 @@ public enum AgentExecutionStatus {
     PENDING,
     RUNNING,
     COMPLETED,
+    TIMED_OUT,
     FAILED
 }

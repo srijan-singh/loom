@@ -183,7 +183,9 @@ public class StateManager {
             if (condition == EdgeCondition.ON_SUCCESS) {
                 include = (status == AgentExecutionStatus.COMPLETED);
             } else if (condition == EdgeCondition.ON_FAILURE) {
-                include = (status == AgentExecutionStatus.FAILED);
+                include =
+                        (status == AgentExecutionStatus.FAILED
+                                || status == AgentExecutionStatus.TIMED_OUT);
             } else if (condition == EdgeCondition.ALWAYS) {
                 include = true;
             }

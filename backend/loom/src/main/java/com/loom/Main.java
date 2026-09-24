@@ -18,6 +18,7 @@ package com.loom;
 
 import lombok.extern.slf4j.Slf4j;
 
+import com.loom.auth.TokenGenerator;
 import com.loom.engine.AgentRuntime;
 import com.loom.engine.GraphResolver;
 import com.loom.engine.StateManager;
@@ -86,9 +87,13 @@ public class Main {
                         sseManager,
                         knowledgeRepo);
 
+        // Auth - one token per launch, handed to Flutter via stdout
+        String token = TokenGenerator.generateToken();
+
         // Transport
         LocalServer localServer =
                 new LocalServer(
+                        token,
                         sseManager,
                         agentRuntime,
                         workflowEngine,
@@ -102,6 +107,10 @@ public class Main {
                         graphResolver);
 
         localServer.start(port);
-        System.out.println("Loom engine listening on port " + port);
+        // Announce both port and token on stdout so the Flutter shell can read them.
+        // CAUTION: These two lines are part of the process-launch protocol - do not re-order them.
+        System.out.println("LOOM_PORT=" + port);
+        System.out.println("LOOM_TOKEN=" + token);
+        System.out.flush();
     }
 }

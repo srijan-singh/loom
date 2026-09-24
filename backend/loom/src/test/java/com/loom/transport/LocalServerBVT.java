@@ -26,6 +26,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loom.auth.TokenGenerator;
 import com.loom.engine.AgentRuntime;
 import com.loom.engine.GraphResolver;
 import com.loom.engine.StateManager;
@@ -53,6 +54,7 @@ class LocalServerBVT {
     private static LocalServer server;
     private static SSEManager sseManager;
     private static Path dbFile;
+    private static String TOKEN;
 
     @BeforeAll
     static void startServer() throws IOException {
@@ -99,8 +101,10 @@ class LocalServerBVT {
                         sseManager,
                         knowledgeRepo);
 
+        TOKEN = TokenGenerator.generateToken();
         server =
                 new LocalServer(
+                        TOKEN,
                         sseManager,
                         agentRuntime,
                         workflowEngine,
@@ -124,7 +128,7 @@ class LocalServerBVT {
     @Test
     @DisplayName("SSE end-to-end: client connects, broadcast delivers WorkflowEvent JSON")
     void sseEndToEnd() throws Exception {
-        TestSSEClient client = new TestSSEClient(1, port);
+        TestSSEClient client = new TestSSEClient(1, port, TOKEN);
         try {
             // 1 — connect
             client.connect();

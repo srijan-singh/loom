@@ -17,6 +17,7 @@
 package com.loom.transport;
 
 import io.javalin.Javalin;
+import io.javalin.http.UnauthorizedResponse;
 import lombok.extern.slf4j.Slf4j;
 
 import com.loom.engine.AgentRuntime;
@@ -41,6 +42,17 @@ public class LocalServer {
 
     private static final String EVENTS_ENDPOINT = "/events";
 
+    /** Header name client sends on every REST request */
+    private static final String TOKEN_HEADER = "X-Loom-Token";
+
+    /**
+     * Query-param name client appends to the SSE URL
+     *
+     * <p>Headers aren't reliable on SSE
+     */
+    private static final String TOKEN_PARAM = "token";
+
+    private final String expectedToken;
     private final SSEManager sseManager;
     private final AgentRuntime agentRuntime;
     private final WorkflowEngine workflowEngine;
@@ -55,6 +67,7 @@ public class LocalServer {
     private Javalin app;
 
     public LocalServer(
+            String expectedToken,
             SSEManager sseManager,
             AgentRuntime agentRuntime,
             WorkflowEngine workflowEngine,
@@ -66,6 +79,7 @@ public class LocalServer {
             WorkflowRepository workflowRepository,
             WorkspaceRepository workspaceRepository,
             GraphResolver graphResolver) {
+        this.expectedToken = expectedToken != null ? expectedToken.strip() : null;
         this.sseManager = sseManager;
         this.agentRuntime = agentRuntime;
         this.workflowEngine = workflowEngine;
@@ -91,7 +105,34 @@ public class LocalServer {
         app =
                 Javalin.create(
                                 config -> {
-                                    config.routes.sse(EVENTS_ENDPOINT, sseManager::attach);
+                                    config.routes.before(
+                                            ctx -> {
+                                                if (isInvalidToken(
+                                                        ctx.header(TOKEN_HEADER),
+                                                        ctx.queryParam(TOKEN_PARAM))) {
+                                                    log.warn(
+                                                            "Rejected request {} {} due to invalid token",
+                                                            ctx.method(),
+                                                            ctx.path());
+                                                    throw new UnauthorizedResponse();
+                                                }
+                                            });
+                                    // SSE connections are not intercepted by the before-filter
+                                    // above; validate the token directly in the SseHandler
+                                    // before handing off to SSEManager.
+                                    config.routes.sse(
+                                            EVENTS_ENDPOINT,
+                                            client -> {
+                                                if (isInvalidToken(
+                                                        client.ctx().header(TOKEN_HEADER),
+                                                        client.ctx().queryParam(TOKEN_PARAM))) {
+                                                    log.warn(
+                                                            "Rejected SSE connection due to invalid token");
+                                                    client.ctx().status(401);
+                                                    return;
+                                                }
+                                                sseManager.attach(client);
+                                            });
                                     agentRoutes.register(config.routes);
                                     workflowRoutes.register(config.routes);
                                     skillRoutes.register(config.routes);
@@ -107,5 +148,11 @@ public class LocalServer {
         if (app != null) {
             app.stop();
         }
+    }
+
+    /** Returns true when neither the header nor the query-param matches the per-launch token. */
+    private boolean isInvalidToken(String fromHeader, String fromQuery) {
+        String provided = (fromHeader != null && !fromHeader.isBlank()) ? fromHeader : fromQuery;
+        return provided == null || !expectedToken.equals(provided.strip());
     }
 }

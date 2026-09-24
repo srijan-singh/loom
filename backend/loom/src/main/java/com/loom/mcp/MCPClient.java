@@ -19,8 +19,6 @@ package com.loom.mcp;
 import java.util.List;
 import java.util.Map;
 
-import com.loom.llm.MCPToolDefinition;
-
 /**
  * Stub MCP client.
  *

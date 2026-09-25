@@ -19,10 +19,10 @@ package com.loom;
 import lombok.extern.slf4j.Slf4j;
 
 import com.loom.auth.TokenGenerator;
-import com.loom.engine.AgentRuntime;
-import com.loom.engine.GraphResolver;
 import com.loom.engine.StateManager;
 import com.loom.engine.WorkflowEngine;
+import com.loom.engine.agent.AgentRuntime;
+import com.loom.engine.graph.GraphResolver;
 import com.loom.llm.LLMGateway;
 import com.loom.llm.LLMProviderFactory;
 import com.loom.mcp.MCPClient;

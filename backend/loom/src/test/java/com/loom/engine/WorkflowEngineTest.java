@@ -42,6 +42,8 @@ import com.loom.domain.WorkflowDefinition;
 import com.loom.domain.WorkflowEdge;
 import com.loom.domain.WorkflowNode;
 import com.loom.domain.WorkflowType;
+import com.loom.engine.agent.AgentRuntime;
+import com.loom.engine.graph.GraphResolver;
 import com.loom.event.EventType;
 import com.loom.event.WorkflowEvent;
 import com.loom.storage.repository.AgentExecutionRepository;

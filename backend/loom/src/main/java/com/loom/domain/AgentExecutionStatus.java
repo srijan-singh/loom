@@ -18,6 +18,7 @@ package com.loom.domain;
 
 public enum AgentExecutionStatus {
     PENDING,
+    QUEUED,
     RUNNING,
     COMPLETED,
     TIMED_OUT,

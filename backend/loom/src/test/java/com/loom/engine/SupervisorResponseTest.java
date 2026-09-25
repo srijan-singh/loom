@@ -19,6 +19,7 @@ package com.loom.engine;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loom.engine.graph.SupervisorResponse;
 import org.junit.jupiter.api.Test;
 
 class SupervisorResponseTest {

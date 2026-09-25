@@ -14,10 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.loom.engine;
+package com.loom.engine.node;
 
-public class InvalidWorkflowException extends Exception {
-    public InvalidWorkflowException(String message) {
-        super(message);
+import com.loom.domain.AgentExecutionStatus;
+
+public record NodeResult(AgentExecutionStatus status, String output) {
+
+    public boolean isSuccess() {
+        return status == AgentExecutionStatus.COMPLETED;
     }
 }

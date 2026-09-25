@@ -32,6 +32,7 @@ import com.loom.domain.NodeType;
 import com.loom.domain.Session;
 import com.loom.domain.SessionStatus;
 import com.loom.domain.WorkflowNode;
+import com.loom.engine.agent.AgentRuntime;
 import com.loom.llm.LLMGateway;
 import com.loom.llm.LLMMessage;
 import com.loom.llm.LLMRequest;

@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.loom.engine;
+package com.loom.engine.graph;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -32,6 +32,7 @@ import com.loom.domain.WorkflowDefinition;
 import com.loom.domain.WorkflowEdge;
 import com.loom.domain.WorkflowNode;
 import com.loom.domain.WorkflowType;
+import com.loom.engine.WorkflowEngine;
 
 /**
  * Validates a {@link WorkflowDefinition} and produces a topologically-ordered {@link ExecutionPlan}

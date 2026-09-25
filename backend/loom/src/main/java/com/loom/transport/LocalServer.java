@@ -20,9 +20,9 @@ import io.javalin.Javalin;
 import io.javalin.http.UnauthorizedResponse;
 import lombok.extern.slf4j.Slf4j;
 
-import com.loom.engine.AgentRuntime;
-import com.loom.engine.GraphResolver;
 import com.loom.engine.WorkflowEngine;
+import com.loom.engine.agent.AgentRuntime;
+import com.loom.engine.graph.GraphResolver;
 import com.loom.storage.repository.AgentExecutionRepository;
 import com.loom.storage.repository.AgentRepository;
 import com.loom.storage.repository.MCPConnectionRepository;

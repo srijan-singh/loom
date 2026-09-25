@@ -30,6 +30,7 @@ import com.loom.domain.EdgeCondition;
 import com.loom.domain.NodeType;
 import com.loom.domain.WorkflowEdge;
 import com.loom.domain.WorkflowNode;
+import com.loom.engine.graph.ExecutionPlan;
 import com.loom.storage.repository.AgentExecutionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -19,6 +19,7 @@ package com.loom.domain;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Data
@@ -32,6 +33,7 @@ public class WorkflowDefinition {
     private List<WorkflowEdge> edges;
     private long createdAt;
     private long updatedAt;
+    private Map<String, Object> metadata;
 
     public WorkflowDefinition() {
         this.id = UUID.randomUUID().toString();

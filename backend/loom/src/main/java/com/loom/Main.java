@@ -18,13 +18,15 @@ package com.loom;
 
 import lombok.extern.slf4j.Slf4j;
 
-import com.loom.engine.AgentRuntime;
-import com.loom.engine.GraphResolver;
+import com.loom.auth.TokenGenerator;
 import com.loom.engine.StateManager;
 import com.loom.engine.WorkflowEngine;
+import com.loom.engine.agent.AgentRuntime;
+import com.loom.engine.graph.GraphResolver;
 import com.loom.llm.LLMGateway;
 import com.loom.llm.LLMProviderFactory;
 import com.loom.mcp.MCPClient;
+import com.loom.mcp.StubMCPClient;
 import com.loom.storage.DatabaseManager;
 import com.loom.storage.repository.AgentExecutionRepository;
 import com.loom.storage.repository.AgentRepository;
@@ -59,7 +61,7 @@ public class Main {
         // Engine
         SSEManager sseManager = new SSEManager();
         LLMGateway llmGateway = LLMProviderFactory.create();
-        MCPClient mcpClient = new MCPClient();
+        MCPClient mcpClient = new StubMCPClient();
 
         AgentRuntime agentRuntime =
                 new AgentRuntime(
@@ -86,9 +88,13 @@ public class Main {
                         sseManager,
                         knowledgeRepo);
 
+        // Auth - one token per launch, handed to Flutter via stdout
+        String token = TokenGenerator.generateToken();
+
         // Transport
         LocalServer localServer =
                 new LocalServer(
+                        token,
                         sseManager,
                         agentRuntime,
                         workflowEngine,
@@ -102,6 +108,10 @@ public class Main {
                         graphResolver);
 
         localServer.start(port);
-        System.out.println("Loom engine listening on port " + port);
+        // Announce both port and token on stdout so the Flutter shell can read them.
+        // CAUTION: These two lines are part of the process-launch protocol - do not re-order them.
+        System.out.println("LOOM_PORT=" + port);
+        System.out.println("LOOM_TOKEN=" + token);
+        System.out.flush();
     }
 }

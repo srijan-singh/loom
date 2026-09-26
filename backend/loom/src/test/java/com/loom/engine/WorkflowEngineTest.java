@@ -42,11 +42,14 @@ import com.loom.domain.WorkflowDefinition;
 import com.loom.domain.WorkflowEdge;
 import com.loom.domain.WorkflowNode;
 import com.loom.domain.WorkflowType;
+import com.loom.engine.agent.AgentRuntime;
+import com.loom.engine.graph.GraphResolver;
 import com.loom.event.EventType;
 import com.loom.event.WorkflowEvent;
 import com.loom.storage.repository.AgentExecutionRepository;
 import com.loom.storage.repository.SessionRepository;
 import com.loom.storage.repository.WorkflowRepository;
+import com.loom.storage.repository.WorkspaceKnowledgeRepository;
 import com.loom.transport.SSEManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,11 +63,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class WorkflowEngineTest {
 
     @Mock private AgentRuntime agentRuntime;
+
     @Mock private SessionRepository sessionRepository;
+
     @Mock private WorkflowRepository workflowRepository;
+
     @Mock private AgentExecutionRepository execRepo;
+
     @Mock private SSEManager sseManager;
-    @Mock private com.loom.storage.repository.WorkspaceKnowledgeRepository knowledgeRepository;
+
+    @Mock private WorkspaceKnowledgeRepository knowledgeRepository;
 
     /** Real StateManager backed by mocked execRepo so status tracking works. */
     private StateManager stateManager;
@@ -376,7 +384,7 @@ class WorkflowEngineTest {
     // ── test 8: node timeout → NODE_FAILED, SESSION_FAILED ───────────────────
 
     @Test
-    void nodeTimeoutBroadcastsNodeFailedAndSessionFails() throws InterruptedException {
+    void nodeTimeoutBroadcastsNodeFailedAndSessionFails() {
         WorkflowNode start = node("start", NodeType.START);
         WorkflowNode slow = node("slow", NodeType.WORKER);
         WorkflowNode end = node("end", NodeType.END);

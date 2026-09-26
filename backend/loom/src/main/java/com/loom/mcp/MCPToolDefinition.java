@@ -14,10 +14,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.loom.engine;
+package com.loom.mcp;
 
-public class InvalidWorkflowException extends Exception {
-    public InvalidWorkflowException(String message) {
-        super(message);
-    }
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.Map;
+
+/**
+ * Describes a single MCP tool that can be offered to the LLM. The {@code inputSchema} follows JSON
+ * Schema (type + properties + required).
+ */
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class MCPToolDefinition {
+    /** Unique tool name, e.g. "read_file" */
+    private String name;
+
+    /** Human-readable description shown to the model. */
+    private String description;
+
+    /**
+     * JSON Schema object describing the tool's parameters. Example: {@code
+     * {"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}}
+     */
+    private Map<String, Object> inputSchema;
 }

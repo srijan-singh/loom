@@ -26,6 +26,7 @@ import com.loom.domain.AgentExecutionStatus;
 import com.loom.domain.EdgeCondition;
 import com.loom.domain.WorkflowEdge;
 import com.loom.domain.WorkflowNode;
+import com.loom.engine.graph.ExecutionPlan;
 import com.loom.storage.repository.AgentExecutionRepository;
 
 /**
@@ -183,7 +184,9 @@ public class StateManager {
             if (condition == EdgeCondition.ON_SUCCESS) {
                 include = (status == AgentExecutionStatus.COMPLETED);
             } else if (condition == EdgeCondition.ON_FAILURE) {
-                include = (status == AgentExecutionStatus.FAILED);
+                include =
+                        (status == AgentExecutionStatus.FAILED
+                                || status == AgentExecutionStatus.TIMED_OUT);
             } else if (condition == EdgeCondition.ALWAYS) {
                 include = true;
             }

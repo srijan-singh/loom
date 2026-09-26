@@ -14,23 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.loom.engine;
+package com.loom.engine.node;
 
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import com.loom.domain.AgentExecutionStatus;
 
-import java.util.List;
+public record NodeResult(AgentExecutionStatus status, String output) {
 
-/**
- * Data carrier for the structured JSON response a supervisor agent emits each iteration.
- *
- * <p>Deserialised by {@code WorkflowEngine} via Jackson.
- */
-@Data
-@NoArgsConstructor
-public class SupervisorResponse {
-
-    private boolean done;
-    private List<String> dispatchTo;
-    private String message;
+    public boolean isSuccess() {
+        return status == AgentExecutionStatus.COMPLETED;
+    }
 }

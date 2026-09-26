@@ -28,6 +28,7 @@ import com.loom.domain.NodeType;
 import com.loom.domain.SessionStatus;
 import com.loom.domain.WorkflowEdge;
 import com.loom.domain.WorkflowNode;
+import com.loom.engine.graph.ExecutionPlan;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

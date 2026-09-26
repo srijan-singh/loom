@@ -18,12 +18,49 @@ package com.loom.transport.routes;
 
 import io.javalin.router.JavalinDefaultRoutingApi;
 
+import java.util.Optional;
+
+import com.loom.domain.Workspace;
+import com.loom.storage.repository.WorkspaceRepository;
+
 public class WorkspaceRoutes {
-    private static final String NOT_IMPLEMENTED = "{\"status\":\"not_implemented\"}";
+
+    private final WorkspaceRepository workspaceRepository;
+
+    public WorkspaceRoutes(WorkspaceRepository workspaceRepository) {
+        this.workspaceRepository = workspaceRepository;
+    }
 
     public void register(JavalinDefaultRoutingApi router) {
-        router.get("/workspaces", ctx -> ctx.result(NOT_IMPLEMENTED));
-        router.post("/workspaces", ctx -> ctx.result(NOT_IMPLEMENTED));
-        router.get("/workspaces/{id}", ctx -> ctx.result(NOT_IMPLEMENTED));
+
+        // GET /workspaces — list all
+        router.get("/workspaces", ctx -> ctx.json(workspaceRepository.findAll()));
+
+        // POST /workspaces — create and return 201
+        router.post(
+                "/workspaces",
+                ctx -> {
+                    Workspace body = ctx.bodyAsClass(Workspace.class);
+                    if (body.getName() == null || body.getName().isBlank()) {
+                        ctx.status(400).json(RouteHelper.error("name is required"));
+                        return;
+                    }
+                    body.setCreatedAt(System.currentTimeMillis());
+                    workspaceRepository.save(body);
+                    ctx.status(201).json(body);
+                });
+
+        // GET /workspaces/{id} — find by id or 404
+        router.get(
+                "/workspaces/{id}",
+                ctx -> {
+                    String id = ctx.pathParam("id");
+                    Optional<Workspace> found = workspaceRepository.findById(id);
+                    if (found.isEmpty()) {
+                        ctx.status(404).json(RouteHelper.notFound());
+                    } else {
+                        ctx.json(found.get());
+                    }
+                });
     }
 }

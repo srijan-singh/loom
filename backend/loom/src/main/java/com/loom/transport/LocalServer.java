@@ -100,7 +100,7 @@ public class LocalServer {
         MCPRoutes mcpRoutes = new MCPRoutes(mcpRepository);
         SessionRoutes sessionRoutes =
                 new SessionRoutes(sessionRepository, workflowEngine, executionRepository);
-        WorkspaceRoutes workspaceRoutes = new WorkspaceRoutes();
+        WorkspaceRoutes workspaceRoutes = new WorkspaceRoutes(workspaceRepository);
 
         app =
                 Javalin.create(

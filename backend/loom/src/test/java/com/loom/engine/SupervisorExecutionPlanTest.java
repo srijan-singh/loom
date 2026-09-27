@@ -27,6 +27,7 @@ import java.util.Map;
 import com.loom.domain.NodeType;
 import com.loom.domain.WorkflowEdge;
 import com.loom.domain.WorkflowNode;
+import com.loom.engine.graph.SupervisorExecutionPlan;
 import org.junit.jupiter.api.Test;
 
 class SupervisorExecutionPlanTest {

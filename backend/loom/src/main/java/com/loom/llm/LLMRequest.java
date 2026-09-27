@@ -21,6 +21,7 @@ import lombok.Data;
 
 import java.util.List;
 
+import com.loom.mcp.MCPToolDefinition;
 import org.jspecify.annotations.Nullable;
 
 /**

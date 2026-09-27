@@ -53,9 +53,9 @@ public class TestSSEClient {
                     .readTimeout(0, TimeUnit.MILLISECONDS) // infinite — SSE is long-lived
                     .build();
 
-    public TestSSEClient(int clientId, int port) {
+    public TestSSEClient(int clientId, int port, String token) {
         this.clientId = clientId;
-        this.url = "http://localhost:" + port + "/events";
+        this.url = "http://localhost:" + port + "/events?token=" + token;
     }
 
     /**

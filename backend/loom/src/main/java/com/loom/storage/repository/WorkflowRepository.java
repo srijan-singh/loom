@@ -37,7 +37,7 @@ public class WorkflowRepository extends BaseRepository<WorkflowDefinition> {
     private static final String COL_GRAPH = "graph";
     private static final String COL_CREATED_AT = "created_at";
     private static final String COL_UPDATED_AT = "updated_at";
-
+    private static final String COL_METADATA = "metadata";
     // queries
     private static final String TABLE = "workflow_definitions";
 
@@ -52,7 +52,8 @@ public class WorkflowRepository extends BaseRepository<WorkflowDefinition> {
                     COL_CREATED_BY,
                     COL_GRAPH,
                     COL_CREATED_AT,
-                    COL_UPDATED_AT);
+                    COL_UPDATED_AT,
+                    COL_METADATA);
 
     public WorkflowRepository(DatabaseManager db) {
         super(db, TABLE);
@@ -71,6 +72,7 @@ public class WorkflowRepository extends BaseRepository<WorkflowDefinition> {
                             ps.setString(5, graphToJson(wf));
                             ps.setLong(6, wf.getCreatedAt());
                             ps.setLong(7, wf.getUpdatedAt());
+                            ps.setString(8, toJsonMap(wf.getMetadata()));
                         });
     }
 
@@ -88,6 +90,7 @@ public class WorkflowRepository extends BaseRepository<WorkflowDefinition> {
         if (createdBy != null) wf.setCreatedBy(WorkflowCreatedBy.valueOf(createdBy));
         wf.setCreatedAt(rs.getLong(COL_CREATED_AT));
         wf.setUpdatedAt(rs.getLong(COL_UPDATED_AT));
+        wf.setMetadata(fromJsonMap(rs.getString(COL_METADATA)));
         applyGraph(wf, rs.getString(COL_GRAPH));
         return wf;
     }

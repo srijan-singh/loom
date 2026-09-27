@@ -41,6 +41,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.loom.LoomEnv;
+import com.loom.mcp.MCPToolDefinition;
 
 /**
  * Streams responses from OpenAI's Chat Completions API ({@code /v1/chat/completions}).

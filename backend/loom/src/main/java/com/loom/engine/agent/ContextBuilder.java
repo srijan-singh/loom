@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.loom.engine;
+package com.loom.engine.agent;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -23,8 +23,8 @@ import com.loom.domain.AgentDefinition;
 import com.loom.domain.Session;
 import com.loom.domain.WorkspaceKnowledge;
 import com.loom.llm.LLMRequest;
-import com.loom.llm.MCPToolDefinition;
 import com.loom.mcp.MCPClient;
+import com.loom.mcp.MCPToolDefinition;
 
 /**
  * Assembles the {@link LLMRequest} for a single agent turn from its definition, session, input

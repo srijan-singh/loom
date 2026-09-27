@@ -70,7 +70,7 @@ public class SSEManager {
         clients.forEach(
                 client -> {
                     try {
-                        client.sendEvent(eventMessage);
+                        client.sendEvent("message", eventMessage);
                     } catch (Exception e) {
                         log.warn("Failed to send event to client: {}", e.getMessage());
                         failedClients.add(client);

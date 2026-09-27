@@ -14,20 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.loom.event;
+package com.loom.mcp;
 
-public enum EventType {
-    SESSION_STARTED,
-    SESSION_COMPLETED,
-    SESSION_FAILED,
-    NODE_WAITING,
-    NODE_QUEUED,
-    NODE_RUNNING,
-    NODE_COMPLETED,
-    NODE_FAILED,
-    AGENT_TOKEN,
-    AGENT_TOOL_CALL,
-    AGENT_TOOL_RESULT,
-    AGENT_REPORT_WRITTEN,
-    WORKFLOW_STATE_CHANGE
-}
+/**
+ * Implementation is out of scope for current work. Adding file to be compliant with ARCHITECTURE.md
+ */
+public class MCPConnectionManager {}

@@ -30,6 +30,7 @@ import com.loom.domain.EdgeCondition;
 import com.loom.domain.NodeType;
 import com.loom.domain.WorkflowEdge;
 import com.loom.domain.WorkflowNode;
+import com.loom.engine.graph.ExecutionPlan;
 import com.loom.storage.repository.AgentExecutionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -115,6 +116,17 @@ class StateManagerTest {
     void setStatusCompletedPopulatesCompletedAt() {
         sm.setStatus("s4", "n1", AgentExecutionStatus.RUNNING);
         sm.setStatus("s4", "n1", AgentExecutionStatus.COMPLETED);
+
+        ArgumentCaptor<AgentExecution> captor = ArgumentCaptor.forClass(AgentExecution.class);
+        verify(execRepo, org.mockito.Mockito.times(2)).save(captor.capture());
+        AgentExecution last = captor.getAllValues().get(1);
+        assertThat(last.getCompletedAt()).isNotNull().isGreaterThan(0L);
+    }
+
+    @Test
+    void setStatusTimedOutPopulatesCompletedAt() {
+        sm.setStatus("s4_timeout", "n1", AgentExecutionStatus.RUNNING);
+        sm.setStatus("s4_timeout", "n1", AgentExecutionStatus.TIMED_OUT);
 
         ArgumentCaptor<AgentExecution> captor = ArgumentCaptor.forClass(AgentExecution.class);
         verify(execRepo, org.mockito.Mockito.times(2)).save(captor.capture());

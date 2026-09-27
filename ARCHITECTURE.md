@@ -121,12 +121,44 @@ com.loom
  │         └── WorkspaceRoutes.java
  │
  ├── engine
- │    ├── WorkflowEngine.java     → Orchestrates workflow execution
- │    ├── GraphResolver.java      → Parses workflow JSON into execution plan
- │    ├── StateManager.java       → Manages session + node states
- │    ├── AgentRuntime.java       → Executes a single agent
- │    ├── ContextBuilder.java     → Assembles prompt for agent
- │    └── ReportWriter.java       → Writes agent death report
+ │    ├── WorkflowEngine.java     → Entry point: loads session/workflow, resolves plan,
+ │    │                              branches to ChainExecutor or SupervisorExecutor;
+ │    │                              owns runAsync/run/isActive and the active-session guard
+ │    ├── StateManager.java       → In-memory + persisted node status tracking;
+ │    │                              used by WorkflowEngine and all executors
+ │    │
+ │    ├── executor/               → One class per workflow execution strategy
+ │    │    ├── ChainExecutor.java      → Topological node loop, activatedNodes tracking,
+ │    │    │                             nodeContextMap, terminal status for CHAIN workflows
+ │    │    └── SupervisorExecutor.java → Iteration loop, worker batch dispatch,
+ │    │                                  supervisor response parsing, terminal status
+ │    │                                  for SUPERVISOR workflows
+ │    │
+ │    ├── graph/                  → Graph validation and execution plan production
+ │    │    ├── GraphResolver.java           → Validates workflow graph, topological sort,
+ │    │    │                                  produces ExecutionPlan or SupervisorExecutionPlan
+ │    │    ├── ExecutionPlan.java           → Ordered nodes + edge index for CHAIN execution
+ │    │    ├── SupervisorExecutionPlan.java → Extends ExecutionPlan with supervisor topology:
+ │    │    │                                  supervisorNode, workerNodes, dispatchEdges,
+ │    │    │                                  reportBackEdges, maxIterations
+ │    │    ├── SupervisorResponse.java      → Jackson DTO parsed from supervisor LLM output:
+ │    │    │                                  {done, dispatchTo, message}
+ │    │    └── InvalidWorkflowException.java → Typed exception thrown by GraphResolver
+ │    │
+ │    ├── node/                   → Single-node execution primitives
+ │    │    └── NodeRunner.java         → QUEUED → RUNNING → COMPLETED / FAILED / TIMED_OUT
+ │    │                                  status transitions, timeout enforcement, SSE node
+ │    │                                  events; used by ChainExecutor and SupervisorExecutor
+ │    │
+ │    └── agent/                  → Agent-level: LLM loop, context assembly, reporting
+ │         ├── AgentRuntime.java       → Executes one workflow node: loads skill, fetches
+ │         │                             knowledge, calls LLM, handles tool loop,
+ │         │                             persists execution record, writes report
+ │         ├── AgentRunner.java        → Standalone single-agent LLM loop (no workflow
+ │         │                             context); used for direct agent invocations
+ │         ├── ContextBuilder.java     → Assembles LLMRequest from agent definition,
+ │         │                             session, skill content, and workspace knowledge
+ │         └── ReportWriter.java       → Persists agent output as WorkspaceKnowledge record
  │
  ├── llm
  │    ├── LLMGateway.java         → Interface
@@ -297,6 +329,7 @@ Flutter opens a single SSE connection and reacts to all events on it. Every sign
 | `SESSION_COMPLETED` | Session finished successfully |
 | `SESSION_FAILED` | Session terminated with error |
 | `NODE_WAITING` | Node is blocked on dependencies |
+| `NODE_QUEUED` | Node is activated and submitted to the executor, awaiting a thread |
 | `NODE_RUNNING` | Node's agent has started |
 | `NODE_COMPLETED` | Node's agent finished successfully |
 | `NODE_FAILED` | Node's agent failed |

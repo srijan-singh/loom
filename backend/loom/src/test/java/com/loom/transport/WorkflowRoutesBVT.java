@@ -29,13 +29,15 @@ import java.nio.file.Path;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loom.auth.TokenGenerator;
 import com.loom.domain.SessionStatus;
-import com.loom.engine.AgentRuntime;
-import com.loom.engine.GraphResolver;
 import com.loom.engine.StateManager;
 import com.loom.engine.WorkflowEngine;
+import com.loom.engine.agent.AgentRuntime;
+import com.loom.engine.graph.GraphResolver;
 import com.loom.llm.MockLLMProvider;
 import com.loom.mcp.MCPClient;
+import com.loom.mcp.StubMCPClient;
 import com.loom.storage.DatabaseManager;
 import com.loom.storage.TestFixtures;
 import com.loom.storage.repository.*;
@@ -91,6 +93,7 @@ class WorkflowRoutesBVT {
     private static HttpClient http;
     private static SessionRepository sessionRepo;
     private static AgentExecutionRepository execRepo;
+    private static String TOKEN;
 
     @BeforeAll
     static void startServer() throws IOException {
@@ -113,7 +116,7 @@ class WorkflowRoutesBVT {
         WorkspaceKnowledgeRepository knowledgeRepo = new WorkspaceKnowledgeRepository(db);
 
         SSEManager sseManager = new SSEManager();
-        MCPClient mcpClient = new MCPClient();
+        MCPClient mcpClient = new StubMCPClient();
         AgentRuntime agentRuntime =
                 new AgentRuntime(
                         new MockLLMProvider(),
@@ -139,8 +142,10 @@ class WorkflowRoutesBVT {
                         sseManager,
                         knowledgeRepo);
 
+        TOKEN = TokenGenerator.generateToken();
         server =
                 new LocalServer(
+                        TOKEN,
                         sseManager,
                         agentRuntime,
                         workflowEngine,
@@ -168,7 +173,7 @@ class WorkflowRoutesBVT {
     private HttpResponse<String> get(String path) throws Exception {
         return http.send(
                 HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:" + port + path))
+                        .uri(URI.create(appendToken("http://localhost:" + port + path)))
                         .GET()
                         .build(),
                 HttpResponse.BodyHandlers.ofString());
@@ -177,7 +182,7 @@ class WorkflowRoutesBVT {
     private HttpResponse<String> post(String path, String body) throws Exception {
         return http.send(
                 HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:" + port + path))
+                        .uri(URI.create(appendToken("http://localhost:" + port + path)))
                         .header("Content-Type", "application/json")
                         .POST(HttpRequest.BodyPublishers.ofString(body))
                         .build(),
@@ -187,7 +192,7 @@ class WorkflowRoutesBVT {
     private HttpResponse<String> put(String path, String body) throws Exception {
         return http.send(
                 HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:" + port + path))
+                        .uri(URI.create(appendToken("http://localhost:" + port + path)))
                         .header("Content-Type", "application/json")
                         .PUT(HttpRequest.BodyPublishers.ofString(body))
                         .build(),
@@ -197,10 +202,15 @@ class WorkflowRoutesBVT {
     private HttpResponse<String> delete(String path) throws Exception {
         return http.send(
                 HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:" + port + path))
+                        .uri(URI.create(appendToken("http://localhost:" + port + path)))
                         .DELETE()
                         .build(),
                 HttpResponse.BodyHandlers.ofString());
+    }
+
+    private String appendToken(String path) {
+        String separator = path.contains("?") ? "&" : "?";
+        return path + separator + "token=" + TOKEN;
     }
 
     // ── Workflow CRUD ─────────────────────────────────────────────────────────

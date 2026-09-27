@@ -31,13 +31,15 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loom.auth.TokenGenerator;
 import com.loom.domain.SessionStatus;
-import com.loom.engine.AgentRuntime;
-import com.loom.engine.GraphResolver;
 import com.loom.engine.StateManager;
 import com.loom.engine.WorkflowEngine;
+import com.loom.engine.agent.AgentRuntime;
+import com.loom.engine.graph.GraphResolver;
 import com.loom.llm.MockLLMProvider;
 import com.loom.mcp.MCPClient;
+import com.loom.mcp.StubMCPClient;
 import com.loom.storage.DatabaseManager;
 import com.loom.storage.TestFixtures;
 import com.loom.storage.repository.*;
@@ -65,6 +67,7 @@ class RoutesBVT {
     private static SSEManager sseManager;
     private static Path dbFile;
     private static HttpClient http;
+    private static String TOKEN;
 
     // repositories exposed for direct verification
     private static AgentExecutionRepository execRepo;
@@ -92,7 +95,7 @@ class RoutesBVT {
         knowledgeRepo = new WorkspaceKnowledgeRepository(db);
 
         sseManager = new SSEManager();
-        MCPClient mcpClient = new MCPClient();
+        MCPClient mcpClient = new StubMCPClient();
         AgentRuntime agentRuntime =
                 new AgentRuntime(
                         new MockLLMProvider(),
@@ -118,8 +121,10 @@ class RoutesBVT {
                         sseManager,
                         knowledgeRepo);
 
+        TOKEN = TokenGenerator.generateToken();
         server =
                 new LocalServer(
+                        TOKEN,
                         sseManager,
                         agentRuntime,
                         workflowEngine,
@@ -148,6 +153,7 @@ class RoutesBVT {
         return http.send(
                 HttpRequest.newBuilder()
                         .uri(URI.create("http://localhost:" + port + path))
+                        .header("X-Loom-Token", TOKEN)
                         .GET()
                         .build(),
                 HttpResponse.BodyHandlers.ofString());
@@ -158,6 +164,7 @@ class RoutesBVT {
                 HttpRequest.newBuilder()
                         .uri(URI.create("http://localhost:" + port + path))
                         .header("Content-Type", "application/json")
+                        .header("X-Loom-Token", TOKEN)
                         .POST(HttpRequest.BodyPublishers.ofString(body))
                         .build(),
                 HttpResponse.BodyHandlers.ofString());
@@ -168,6 +175,7 @@ class RoutesBVT {
                 HttpRequest.newBuilder()
                         .uri(URI.create("http://localhost:" + port + path))
                         .header("Content-Type", "application/json")
+                        .header("X-Loom-Token", TOKEN)
                         .PUT(HttpRequest.BodyPublishers.ofString(body))
                         .build(),
                 HttpResponse.BodyHandlers.ofString());
@@ -177,6 +185,7 @@ class RoutesBVT {
         return http.send(
                 HttpRequest.newBuilder()
                         .uri(URI.create("http://localhost:" + port + path))
+                        .header("X-Loom-Token", TOKEN)
                         .DELETE()
                         .build(),
                 HttpResponse.BodyHandlers.ofString());
@@ -329,7 +338,7 @@ class RoutesBVT {
             "POST /sessions/{id}/run executes and produces COMPLETED session, execution row, and knowledge row")
     void sessionRun() throws Exception {
         // 1. Subscribe SSE before triggering run
-        TestSSEClient sse = new TestSSEClient(20, port);
+        TestSSEClient sse = new TestSSEClient(20, port, TOKEN);
         sse.connect();
         assertTrue(sse.isConnected());
         Thread.sleep(200);

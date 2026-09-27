@@ -14,20 +14,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.loom.event;
+package com.loom.mcp;
 
-public enum EventType {
-    SESSION_STARTED,
-    SESSION_COMPLETED,
-    SESSION_FAILED,
-    NODE_WAITING,
-    NODE_QUEUED,
-    NODE_RUNNING,
-    NODE_COMPLETED,
-    NODE_FAILED,
-    AGENT_TOKEN,
-    AGENT_TOOL_CALL,
-    AGENT_TOOL_RESULT,
-    AGENT_REPORT_WRITTEN,
-    WORKFLOW_STATE_CHANGE
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+@Slf4j
+public class StubMCPClient implements MCPClient {
+    @Override
+    public List<MCPToolDefinition> listTools(String mcpConnectionId) {
+        log.debug("MCPClient.listTools (stub): mcpConnectionId='{}'", mcpConnectionId);
+        return Collections.emptyList();
+    }
+
+    @Override
+    public String execute(String toolName, Map<String, Object> toolInput) {
+        log.info("MCPClient.execute (stub): tool='{}' input={}", toolName, toolInput);
+        return "Tool '" + toolName + "' executed (stub result).";
+    }
 }

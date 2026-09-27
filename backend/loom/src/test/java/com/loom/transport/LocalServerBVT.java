@@ -26,14 +26,16 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.loom.engine.AgentRuntime;
-import com.loom.engine.GraphResolver;
+import com.loom.auth.TokenGenerator;
 import com.loom.engine.StateManager;
 import com.loom.engine.WorkflowEngine;
+import com.loom.engine.agent.AgentRuntime;
+import com.loom.engine.graph.GraphResolver;
 import com.loom.event.EventType;
 import com.loom.event.WorkflowEvent;
 import com.loom.llm.MockLLMProvider;
 import com.loom.mcp.MCPClient;
+import com.loom.mcp.StubMCPClient;
 import com.loom.storage.DatabaseManager;
 import com.loom.storage.repository.*;
 import com.loom.transport.util.TestSSEClient;
@@ -53,6 +55,7 @@ class LocalServerBVT {
     private static LocalServer server;
     private static SSEManager sseManager;
     private static Path dbFile;
+    private static String TOKEN;
 
     @BeforeAll
     static void startServer() throws IOException {
@@ -73,7 +76,7 @@ class LocalServerBVT {
         WorkspaceKnowledgeRepository knowledgeRepo = new WorkspaceKnowledgeRepository(db);
 
         sseManager = new SSEManager();
-        MCPClient mcpClient = new MCPClient();
+        MCPClient mcpClient = new StubMCPClient();
         AgentRuntime agentRuntime =
                 new AgentRuntime(
                         new MockLLMProvider(),
@@ -99,8 +102,10 @@ class LocalServerBVT {
                         sseManager,
                         knowledgeRepo);
 
+        TOKEN = TokenGenerator.generateToken();
         server =
                 new LocalServer(
+                        TOKEN,
                         sseManager,
                         agentRuntime,
                         workflowEngine,
@@ -124,7 +129,7 @@ class LocalServerBVT {
     @Test
     @DisplayName("SSE end-to-end: client connects, broadcast delivers WorkflowEvent JSON")
     void sseEndToEnd() throws Exception {
-        TestSSEClient client = new TestSSEClient(1, port);
+        TestSSEClient client = new TestSSEClient(1, port, TOKEN);
         try {
             // 1 — connect
             client.connect();

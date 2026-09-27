@@ -21,8 +21,8 @@ import io.javalin.router.JavalinDefaultRoutingApi;
 import java.util.Optional;
 
 import com.loom.domain.WorkflowDefinition;
-import com.loom.engine.GraphResolver;
-import com.loom.engine.InvalidWorkflowException;
+import com.loom.engine.graph.GraphResolver;
+import com.loom.engine.graph.InvalidWorkflowException;
 import com.loom.storage.repository.WorkflowRepository;
 
 public class WorkflowRoutes {

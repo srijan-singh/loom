@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS workflow_definitions (
     created_by TEXT,
     graph      TEXT,
     created_at INTEGER,
-    updated_at INTEGER
+    updated_at INTEGER,
+    metadata   TEXT
 );
 
 -- Workspaces table

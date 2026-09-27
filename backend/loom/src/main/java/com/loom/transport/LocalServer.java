@@ -42,13 +42,17 @@ public class LocalServer {
 
     private static final String EVENTS_ENDPOINT = "/events";
 
-    /** Header name client sends on every REST request */
+    /**
+     * Header name sent on REST requests (e.g. {@code curl -H 'X-Loom-Token: <token>'
+     * http://localhost:<port>/...}).
+     */
     private static final String TOKEN_HEADER = "X-Loom-Token";
 
     /**
-     * Query-param name client appends to the SSE URL
+     * Query parameter name for SSE clients ({@code GET /events?token=<token>}).
      *
-     * <p>Headers aren't reliable on SSE
+     * <p>Standard browser/platform EventSource implementations do not support custom request
+     * headers, so token parameter fallback is supported for SSE streams.
      */
     private static final String TOKEN_PARAM = "token";
 

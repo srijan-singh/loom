@@ -124,6 +124,17 @@ class StateManagerTest {
     }
 
     @Test
+    void setStatusTimedOutPopulatesCompletedAt() {
+        sm.setStatus("s4_timeout", "n1", AgentExecutionStatus.RUNNING);
+        sm.setStatus("s4_timeout", "n1", AgentExecutionStatus.TIMED_OUT);
+
+        ArgumentCaptor<AgentExecution> captor = ArgumentCaptor.forClass(AgentExecution.class);
+        verify(execRepo, org.mockito.Mockito.times(2)).save(captor.capture());
+        AgentExecution last = captor.getAllValues().get(1);
+        assertThat(last.getCompletedAt()).isNotNull().isGreaterThan(0L);
+    }
+
+    @Test
     void getStatusForUnknownPairReturnsPending() {
         assertThat(sm.getStatus("unknown-session", "unknown-node"))
                 .isEqualTo(AgentExecutionStatus.PENDING);

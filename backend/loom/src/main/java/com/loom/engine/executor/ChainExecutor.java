@@ -192,7 +192,7 @@ public class ChainExecutor {
             String sessionId, String nodeId, ExecutionPlan plan, AgentExecutionStatus status) {
         List<WorkflowNode> waiting = stateManager.resolveNextNodes(sessionId, nodeId, plan, status);
         for (WorkflowNode w : waiting) {
-            broadcast(sessionId, EventType.NODE_QUEUED, Map.of("nodeId", w.getId()));
+            broadcast(sessionId, EventType.NODE_WAITING, Map.of("nodeId", w.getId()));
         }
     }
 

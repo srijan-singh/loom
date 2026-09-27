@@ -72,20 +72,34 @@ public class NodeRunner {
                     return agentRuntime.executeNode(sessionId, node, ctx);
                 };
         // run task
-        Future<String> future = executorService.submit(nodeTask);
+        Future<String> future = null;
         try {
+            future = executorService.submit(nodeTask);
             String output = future.get(timeoutSeconds, TimeUnit.SECONDS);
             stateManager.setStatus(sessionId, node.getId(), AgentExecutionStatus.COMPLETED);
             broadcast(sessionId, EventType.NODE_COMPLETED, Map.of("nodeId", node.getId()));
             return new NodeResult(COMPLETED, output);
         } catch (TimeoutException te) {
-            future.cancel(true);
+            if (future != null) {
+                future.cancel(true);
+            }
             stateManager.setStatus(sessionId, node.getId(), AgentExecutionStatus.TIMED_OUT);
             broadcast(
                     sessionId,
                     EventType.NODE_FAILED,
                     Map.of("nodeId", node.getId(), "reason", "timeout"));
             return new NodeResult(TIMED_OUT, null);
+        } catch (InterruptedException ie) {
+            if (future != null) {
+                future.cancel(true);
+            }
+            Thread.currentThread().interrupt();
+            stateManager.setStatus(sessionId, node.getId(), AgentExecutionStatus.FAILED);
+            broadcast(
+                    sessionId,
+                    EventType.NODE_FAILED,
+                    Map.of("nodeId", node.getId(), "reason", "cancelled"));
+            return new NodeResult(FAILED, "cancelled");
         } catch (Exception e) {
             stateManager.setStatus(sessionId, node.getId(), AgentExecutionStatus.FAILED);
             Throwable target = e.getCause() != null ? e.getCause() : e;

@@ -96,6 +96,13 @@ app = Javalin.create(config -> {
 }).start(port);
 ```
 
+### Authentication & Token Passing
+
+Loom generates a per-launch secret token on startup to authenticate communication between the UI and backend subprocess on `localhost`.
+
+- **REST Endpoints:** Standard requests send the token in the `X-Loom-Token` request header (e.g. `curl -H 'X-Loom-Token: <token>' http://localhost:<port>/agents`).
+- **SSE Stream (`/events`):** Query parameter `?token=<token>` (or `X-Loom-Token` header) is accepted. Standard browser and platform `EventSource` clients do not support setting custom request headers, so query parameter authentication is supported on the SSE endpoint to allow event streaming without requiring cookie exchanges.
+
 ---
 
 ## Gotchas

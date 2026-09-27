@@ -58,11 +58,11 @@ public class StateManager {
 
     /**
      * Creates or updates the AgentExecution record for (sessionId, nodeId) with the given status.
-     * Sets startedAt if transitioning to RUNNING; sets completedAt if transitioning to COMPLETED or
-     * FAILED.
+     * Sets startedAt if transitioning to RUNNING; sets completedAt if transitioning to COMPLETED,
+     * FAILED, or TIMED_OUT.
      *
-     * <p>For terminal transitions (COMPLETED / FAILED) the record is re-loaded from the repository
-     * before the status update so that fields written by AgentRuntime — output, report,
+     * <p>For terminal transitions (COMPLETED / FAILED / TIMED_OUT) the record is re-loaded from the
+     * repository before the status update so that fields written by AgentRuntime — output, report,
      * inputContext, agentDefinitionId — are not overwritten by the sparse instance that was placed
      * in the in-memory index when status was first set to RUNNING. If the repository has no record
      * (e.g. in tests), the existing in-memory instance is reused.
@@ -74,7 +74,9 @@ public class StateManager {
         // persisted (with output, report, inputContext, agentDefinitionId), then apply
         // only the terminal status and completedAt on top of it.  Fall back to the
         // existing in-memory object when the repository has no persisted record.
-        if (status == AgentExecutionStatus.COMPLETED || status == AgentExecutionStatus.FAILED) {
+        if (status == AgentExecutionStatus.COMPLETED
+                || status == AgentExecutionStatus.FAILED
+                || status == AgentExecutionStatus.TIMED_OUT) {
             AgentExecution cached = index.get(key);
             AgentExecution fresh =
                     executionRepository.findBySessionIdAndNodeId(sessionId, nodeId).orElse(cached);

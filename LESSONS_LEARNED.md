@@ -34,7 +34,7 @@ One sentence. The thing to remember next time.
 
 ## LL-003 — WorkflowEngine grew beyond a single responsibility
 
-**Date:** 2025-07-14
+**Date:** 2026-09-26
 **Area:** Architecture
 **Related:** ARCHITECTURE.md#4-java-module-structure
 

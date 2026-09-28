@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:loom_ui/router/router.dart';
@@ -83,6 +84,7 @@ class AppShell extends ConsumerWidget {
           if (engineAsync.valueOrNull == EngineState.unreachable)
             _EngineDownOverlay(
               colors: colors,
+              logPath: ref.read(engineProcessServiceProvider).logPath,
               onRetry: () => ref.invalidate(engineStateProvider),
             ),
         ],
@@ -238,8 +240,10 @@ class _ProgressBarState extends State<_ProgressBar>
 
 class _EngineDownOverlay extends StatelessWidget {
   final LoomColors colors;
+  final String? logPath;
   final VoidCallback onRetry;
-  const _EngineDownOverlay({required this.colors, required this.onRetry});
+  const _EngineDownOverlay(
+      {required this.colors, required this.logPath, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -295,26 +299,37 @@ class _EngineDownOverlay extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  child: Container(
-                    height: LoomSize.control,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: colors.lineStrong),
-                      borderRadius:
-                          BorderRadius.circular(LoomRadius.control),
-                    ),
-                    child: Center(
-                      child: Text('View logs',
-                          style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: colors.ink2)),
+                if (logPath != null) ...[
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: logPath!));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Log path copied: $logPath'),
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      height: LoomSize.control,
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: colors.lineStrong),
+                        borderRadius:
+                            BorderRadius.circular(LoomRadius.control),
+                      ),
+                      child: Center(
+                        child: Text('View logs',
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: colors.ink2)),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ],

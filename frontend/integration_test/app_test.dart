@@ -5,6 +5,7 @@ import 'package:loom_ui/router/router.dart';
 import 'package:loom_ui/services/engine_process_service.dart';
 import 'package:loom_ui/services/storage_service.dart';
 import 'package:loom_ui/ui/theme/loom_theme.dart';
+import 'package:loom_ui/ui/screens/onboarding/welcome_screen.dart';
 import 'package:patrol/patrol.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -80,17 +81,7 @@ void main() {
               routes: [
                 GoRoute(
                   path: Routes.onboardingWelcome,
-                  builder: (_, __) => const Scaffold(
-                    body: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('Loom'),
-                          Text('Your AI workforce, on your machine'),
-                        ],
-                      ),
-                    ),
-                  ),
+                  builder: (_, __) => const OnboardingWelcomeScreen(),
                 ),
               ],
             ),

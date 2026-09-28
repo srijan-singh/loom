@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 /// Manages the Java engine subprocess lifecycle.
@@ -15,9 +16,19 @@ class EngineProcessService {
   String? _port;
   String? _token;
   String? _logPath;
+  bool _startFailed = false;
 
   String? get port => _port;
   String? get token => _token;
+
+  /// True after [recordStartFailure] is called, indicating [start] threw.
+  /// [engineStateProvider] uses this to emit [EngineState.unreachable] instead
+  /// of staying in [EngineState.starting] when no port is ever announced.
+  bool get startFailed => _startFailed;
+
+  /// Called by main.dart when [start] rejects so the engine state provider can
+  /// surface [EngineState.unreachable] rather than remaining in starting.
+  void recordStartFailure() => _startFailed = true;
 
   /// Absolute path of the engine log file, available once [start] has been called.
   String? get logPath => _logPath;
@@ -64,18 +75,24 @@ class EngineProcessService {
     final tokenCompleter = Completer<String>();
 
     // Tee stdout: parse protocol lines AND write everything to the log file.
+    // LineSplitter is applied after decoding so LOOM_PORT/LOOM_TOKEN lines that
+    // span two chunks are still recognised correctly.
     _process!.stdout
         .transform(const SystemEncoding().decoder)
-        .listen((chunk) {
-      _writeLog(logFile, chunk);
-      for (final line in chunk.split('\n')) {
-        final trimmed = line.trim();
-        if (trimmed.startsWith('LOOM_PORT=') && !portCompleter.isCompleted) {
-          portCompleter.complete(trimmed.substring('LOOM_PORT='.length));
-        } else if (trimmed.startsWith('LOOM_TOKEN=') &&
-            !tokenCompleter.isCompleted) {
-          tokenCompleter.complete(trimmed.substring('LOOM_TOKEN='.length));
-        }
+        .transform(const LineSplitter())
+        .listen((line) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('LOOM_PORT=') && !portCompleter.isCompleted) {
+        _writeLog(logFile, '$line\n');
+        portCompleter.complete(trimmed.substring('LOOM_PORT='.length));
+      } else if (trimmed.startsWith('LOOM_TOKEN=') &&
+          !tokenCompleter.isCompleted) {
+        // Redact token value in the log file; preserve the original for the
+        // in-memory completer.
+        _writeLog(logFile, 'LOOM_TOKEN=<redacted>\n');
+        tokenCompleter.complete(trimmed.substring('LOOM_TOKEN='.length));
+      } else {
+        _writeLog(logFile, '$line\n');
       }
     });
 

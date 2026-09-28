@@ -37,7 +37,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: Routes.dashboard,
     redirect: (context, state) {
-      final onboarded = true; //storage.isOnboardingComplete(); CHANGE IT only for testing
+      final onboarded = storage.isOnboardingComplete();
       final inOnboarding = state.uri.path.startsWith('/onboarding');
 
       if (!onboarded && !inOnboarding) {

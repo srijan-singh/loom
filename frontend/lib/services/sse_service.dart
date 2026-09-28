@@ -49,30 +49,43 @@ class SseService {
       cancelToken: _cancel,
     )
         .then((response) {
-      response.data!.stream.listen(
-        (chunk) {
-          final decoded = utf8.decode(chunk);
-          for (final line in const LineSplitter().convert(decoded)) {
-            if (line.startsWith('data:')) {
-              final payload = line.substring(5).trim();
-              if (payload.isNotEmpty) {
-                try {
-                  final json = jsonDecode(payload) as Map<String, dynamic>;
-                  _controller?.add(WorkflowEvent.fromJson(json));
-                } catch (_) {
-                  // Malformed SSE payload — skip silently.
-                }
+      response.data!.stream
+          .cast<List<int>>()
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen(
+        (line) {
+          if (line.startsWith('data:')) {
+            final payload = line.substring(5).trim();
+            if (payload.isNotEmpty) {
+              try {
+                final json = jsonDecode(payload) as Map<String, dynamic>;
+                _controller?.add(WorkflowEvent.fromJson(json));
+              } catch (_) {
+                // Malformed SSE payload — skip silently.
               }
             }
           }
         },
-        onError: (_) => Future.delayed(
-          const Duration(seconds: 5),
-          () => _connect(),
-        ),
+        onDone: () {
+          // Normal stream completion — reconnect if anyone is still listening.
+          if (_controller != null && _controller!.hasListener) {
+            Future.delayed(const Duration(seconds: 5), _connect);
+          }
+        },
+        onError: (e) {
+          // Do not reconnect on a cancellation or when there are no listeners.
+          if (e is DioException && e.type == DioExceptionType.cancel) return;
+          if (_controller == null || !_controller!.hasListener) return;
+          Future.delayed(const Duration(seconds: 5), _connect);
+        },
+        cancelOnError: true,
       );
-    }).catchError((_) {
-      Future.delayed(const Duration(seconds: 5), () => _connect());
+    }).catchError((e) {
+      // Request itself failed (e.g. connection refused before streaming began).
+      if (e is DioException && e.type == DioExceptionType.cancel) return;
+      if (_controller == null || !_controller!.hasListener) return;
+      Future.delayed(const Duration(seconds: 5), _connect);
     });
   }
 

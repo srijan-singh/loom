@@ -129,27 +129,29 @@ final apiClientProvider = Provider<ApiClient>(
   (ref) => ApiClient(ref.watch(engineProcessServiceProvider)),
 );
 
-/// Polls the engine health endpoint every 5 s and exposes [EngineState].
-/// Starts in [EngineState.starting] until the first successful ping.
+/// Polls the engine health endpoint and exposes [EngineState].
+/// Checks immediately on first listen, then waits 5 s between each check.
 final engineStateProvider =
     StreamProvider.autoDispose<EngineState>((ref) async* {
   final client = ref.watch(apiClientProvider);
   final engine = ref.watch(engineProcessServiceProvider);
 
-  // If the engine process hasn't announced its port yet, we're starting.
+  // If the engine process hasn't announced its port yet, we're still starting
+  // (unless start() already failed, in which case we're unreachable).
   if (engine.port == null) {
-    yield EngineState.starting;
+    yield engine.startFailed ? EngineState.unreachable : EngineState.starting;
   }
 
-  await for (final _ in Stream.periodic(const Duration(seconds: 5),
-      (i) => i)..take(9999)) {
+  // Check immediately, then every 5 s.
+  while (true) {
     try {
       await client.get('/health');
       yield EngineState.running;
     } catch (_) {
-      yield engine.port == null
-          ? EngineState.starting
-          : EngineState.unreachable;
+      yield engine.startFailed || engine.port != null
+          ? EngineState.unreachable
+          : EngineState.starting;
     }
+    await Future.delayed(const Duration(seconds: 5));
   }
 });

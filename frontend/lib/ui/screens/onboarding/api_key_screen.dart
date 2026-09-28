@@ -112,15 +112,27 @@ class _OnboardingApiKeyScreenState
       setState(() => _keyError = 'Enter your API key.');
       return;
     }
-    // Run test first if not already validated
+    // Prevent starting a concurrent test while one is already in progress.
+    if (_testState == _TestState.testing) return;
+    // Run test first if not already validated.
     if (_testState != _TestState.valid) {
       await _test();
+      if (!mounted) return;
       if (_testState != _TestState.valid) return;
     }
     setState(() => _saving = true);
     final storage = ref.read(storageServiceProvider);
-    await storage.saveApiKey(_provider, key, _selectedModel ?? '');
-    await storage.completeOnboarding();
+    try {
+      await storage.saveApiKey(_provider, key, _selectedModel ?? '');
+      await storage.completeOnboarding();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save: $e')),
+      );
+      return;
+    }
     if (!mounted) return;
     setState(() => _saving = false);
     context.go(Routes.dashboard);

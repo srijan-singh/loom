@@ -48,18 +48,19 @@ void main() {
       expect(find.text('Submit'), findsNothing);
     });
 
-    testWidgets('does not fire onPressed when disabled or loading', (tester) async {
+    testWidgets('does not fire onPressed when loading is true', (tester) async {
       var pressed = false;
       await tester.pumpWidget(
         _wrapWithTheme(
           LoomButton(
-            label: 'Disabled',
-            onPressed: null,
+            label: 'Loading',
+            loading: true,
+            onPressed: () => pressed = true,
           ),
         ),
       );
 
-      await tester.tap(find.text('Disabled'));
+      await tester.tap(find.byType(CircularProgressIndicator));
       await tester.pump();
       expect(pressed, isFalse);
     });

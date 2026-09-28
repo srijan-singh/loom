@@ -10,18 +10,19 @@ import 'package:loom_ui/services/storage_service.dart';
 import 'package:loom_ui/ui/theme/loom_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Resolves the path to the bundled engine JAR.
+/// Resolves the path to the bundled engine JAR for the current platform.
 ///
-/// At runtime the JAR lives inside the .app bundle:
-///   <app>.app/Contents/Resources/loom-engine.jar
-///
-/// `Platform.resolvedExecutable` points to:
-///   <app>.app/Contents/MacOS/<executable>
-/// so we go up two levels (MacOS/ → Contents/) then into Resources/.
+/// Delegates to [EngineProcessService.resolveJarPath] so that macOS, Linux,
+/// and Windows bundle layouts are all handled in one place.
 String _resolveJarPath() {
-  final execDir = File(Platform.resolvedExecutable).parent; // .../MacOS/
-  final contentsDir = execDir.parent;                       // .../Contents/
-  return '${contentsDir.path}/Resources/loom-engine.jar';
+  if (Platform.isMacOS) {
+    // macOS: <app>.app/Contents/MacOS/<exe>  → up two levels → Resources/
+    final execDir = File(Platform.resolvedExecutable).parent; // .../MacOS/
+    final contentsDir = execDir.parent;                       // .../Contents/
+    return '${contentsDir.path}/Resources/loom-engine.jar';
+  }
+  // Linux / Windows: JAR is placed next to the executable by the build.
+  return EngineProcessService.resolveJarPath('loom-engine.jar');
 }
 
 Future<void> main() async {
@@ -39,10 +40,11 @@ Future<void> main() async {
   // "Starting the Loom engine…" rather than a blank/broken dashboard.
   final engine = EngineProcessService();
   engine.start(_resolveJarPath()).catchError((e) {
-    // start() failed (JAR not found, Java not installed, etc.).
-    // engineStateProvider will surface EngineState.unreachable via the
-    // /health poll, which triggers the "Can't reach the engine" overlay.
+    // start() failed (JAR not found, Java not installed, port never announced).
+    // Record the error so engineStateProvider can emit EngineState.unreachable
+    // instead of remaining in starting indefinitely.
     debugPrint('[Loom] Engine start failed: $e');
+    engine.recordStartFailure();
   });
 
   runApp(

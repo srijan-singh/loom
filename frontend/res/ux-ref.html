@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loom UI reference: issue #8 (app shell, onboarding, dashboard)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --font-ui:"Instrument Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --bg:#F1F2F5; --surface:#FFFFFF; --sunken:#F6F7F9;
+  --ink:#161A22; --ink-2:#4A5261; --ink-3:#6B7485;
+  --line:#E1E4EA; --line-strong:#C4CAD6;
+  --accent:#3846B0; --on-accent:#FFFFFF; --accent-tint:#E8EAF8; --accent-ink:#2A3690;
+  --success:#2E7D4F; --success-tint:#E4F2E9;
+  --danger:#B23A2E; --danger-tint:#FBE9E6;
+  --warning:#8A5F00; --warning-tint:#FBF1D6;
+  --r-control:6px; --r-card:10px; --r-window:14px;
+}
+[data-theme="dark"]{
+  --bg:#0F1218; --surface:#171B23; --sunken:#1C212B;
+  --ink:#ECEFF5; --ink-2:#A9B1C1; --ink-3:#8790A2;
+  --line:#2A303C; --line-strong:#3B4353;
+  --accent:#8E9CF5; --on-accent:#0F1218; --accent-tint:#232A52; --accent-ink:#B9C2FA;
+  --success:#6FCB94; --success-tint:#163224;
+  --danger:#F08A7D; --danger-tint:#3A1D19;
+  --warning:#E5B94E; --warning-tint:#33280C;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth;scroll-padding-top:24px}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 14px/1.55 var(--font-ui);-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p{margin:0}
+button,input,select{font:inherit;color:inherit}
+code,.mono{font-family:var(--font-mono);font-size:12px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* document layout */
+.doc{display:grid;grid-template-columns:200px minmax(0,1fr);gap:48px;max-width:1240px;margin:0 auto;padding:32px 32px 96px}
+.toc{position:sticky;top:32px;align-self:start;display:flex;flex-direction:column;gap:2px}
+.toc .brand{display:flex;align-items:center;gap:10px;margin-bottom:20px;font-weight:600;font-size:16px}
+.toc a{color:var(--ink-2);text-decoration:none;padding:6px 10px;border-radius:var(--r-control);font-size:13px}
+.toc a:hover{background:var(--sunken);color:var(--ink)}
+.toc .theme{margin-top:20px}
+.doc-head{margin-bottom:56px;max-width:720px}
+.doc-head h1{font-size:28px;line-height:1.2;font-weight:600;letter-spacing:-.01em;margin-bottom:12px}
+.doc-head p{color:var(--ink-2);font-size:15px;line-height:1.6}
+.doc-head p+p{margin-top:8px}
+.note-fidelity{margin-top:16px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r-card);background:var(--surface);font-size:13px;color:var(--ink-2)}
+section.block{margin-bottom:72px}
+section.block>h2{font-size:20px;font-weight:600;letter-spacing:-.005em;margin-bottom:6px}
+section.block>.lede{color:var(--ink-2);max-width:680px;margin-bottom:24px}
+h3.sub-h{font-size:16px;font-weight:600;margin:32px 0 4px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 16px}
+.tag{display:inline-flex;align-items:center;font-family:var(--font-mono);font-size:12px;padding:2px 8px;border:1px solid var(--line-strong);border-radius:var(--r-control);background:var(--surface);color:var(--ink-2)}
+
+/* buttons, chips */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 16px;border-radius:var(--r-control);border:1px solid var(--line-strong);background:var(--surface);cursor:pointer;font-weight:500;font-size:14px;white-space:nowrap}
+.btn:hover{background:var(--sunken)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.destructive{background:var(--danger);border-color:var(--danger);color:var(--surface)}
+[data-theme="dark"] .btn.destructive{color:#1A0B09}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--accent-ink)}
+.btn.ghost:hover{background:var(--accent-tint)}
+.btn.sm{height:30px;padding:0 12px;font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center}
+.chips .lbl{font-size:12px;color:var(--ink-3);margin-right:4px}
+.chip{border:1px solid var(--line-strong);background:var(--surface);border-radius:999px;padding:4px 12px;font-size:12.5px;cursor:pointer;color:var(--ink-2)}
+.chip[aria-pressed="true"]{background:var(--accent-tint);border-color:var(--accent);color:var(--accent-ink);font-weight:500}
+.chip.action{border-style:dashed}
+
+/* window frame */
+.win{border:1px solid var(--line-strong);border-radius:var(--r-window);overflow:hidden;background:var(--surface);max-width:880px}
+.win-bar{height:34px;display:flex;align-items:center;gap:6px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--sunken);position:relative}
+.win-bar i{width:10px;height:10px;border-radius:50%;background:var(--line-strong)}
+.win-bar span{position:absolute;left:0;right:0;text-align:center;font-size:12px;color:var(--ink-3);pointer-events:none}
+.win-body{position:relative;min-height:480px}
+
+/* welcome */
+.ob{padding:36px 40px;max-width:480px;margin:0 auto}
+.ob-welcome{min-height:480px;max-width:none;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding-bottom:96px;position:relative}
+.ob-welcome::after{content:"";position:absolute;left:0;right:0;bottom:0;height:88px;pointer-events:none;
+  background-image:repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px 12px),repeating-linear-gradient(0deg,var(--line) 0 1px,transparent 1px 12px);
+  -webkit-mask-image:linear-gradient(to top,#000,transparent);mask-image:linear-gradient(to top,#000,transparent)}
+.mark{width:56px;height:56px;border-radius:14px;background:var(--accent-tint);color:var(--accent);display:flex;align-items:center;justify-content:center;margin-bottom:20px}
+.mark svg{width:32px;height:32px}
+.ob-welcome h3{font-size:28px;line-height:1.15;font-weight:600;letter-spacing:-.015em;margin-bottom:10px}
+.ob-welcome .tagline{font-size:16px;margin-bottom:8px}
+.ob-welcome .body{color:var(--ink-2);max-width:340px;margin-bottom:24px}
+.ob-welcome .fine{margin-top:14px;font-size:12px;color:var(--ink-3);max-width:320px;position:relative;z-index:1}
+.ob-welcome>*{position:relative;z-index:1}
+
+/* api key form */
+.ob-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.back{display:inline-flex;align-items:center;gap:4px;background:none;border:0;padding:4px 6px 4px 0;color:var(--ink-2);cursor:pointer;font-size:13px}
+.step{font-size:12px;color:var(--ink-3)}
+.ob h3.title{font-size:20px;font-weight:600;margin-bottom:4px}
+.ob .subtitle{color:var(--ink-2);font-size:13.5px;margin-bottom:20px}
+.field{margin-bottom:16px}
+.field>label,.field>.lbl{display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:6px}
+.input-wrap{position:relative}
+.input,select.input{width:100%;height:36px;padding:0 12px;border:1px solid var(--line-strong);border-radius:var(--r-control);background:var(--surface);font-size:14px}
+.input-wrap .input{padding-right:40px}
+.input:hover{border-color:var(--ink-3)}
+.input:focus-visible{outline:2px solid var(--accent);outline-offset:0;border-color:var(--accent)}
+.input.error{border-color:var(--danger)}
+select.input:disabled{background:var(--sunken);color:var(--ink-3);cursor:not-allowed}
+.input-btn{position:absolute;right:4px;top:4px;width:28px;height:28px;border:0;background:none;border-radius:var(--r-control);color:var(--ink-2);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.input-btn:hover{background:var(--sunken)}
+.help{font-size:12px;margin-top:6px;color:var(--ink-3);min-height:18px}
+.help.error{color:var(--danger)}
+.seg{display:flex;gap:8px;border:0;padding:0;margin:0}
+.seg button{flex:1;height:36px;border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--r-control);cursor:pointer;font-size:13.5px;color:var(--ink-2)}
+.seg button[aria-checked="true"]{border-color:var(--accent);background:var(--accent-tint);color:var(--accent-ink);font-weight:500;box-shadow:inset 0 0 0 1px var(--accent)}
+.status{display:flex;align-items:center;gap:8px;font-size:13px;min-height:24px;margin-bottom:8px}
+.status.ok{color:var(--success)}
+.status.warn{color:var(--warning)}
+.status.busy{color:var(--ink-2)}
+.link{background:none;border:0;padding:0;color:var(--accent-ink);font-size:12.5px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.actions{display:flex;gap:8px;margin-top:8px}
+.actions .btn{flex:1}
+.actions .btn.primary{flex:1.5}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line-strong);border-top-color:var(--accent);animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* shell + dashboard */
+.shell{display:grid;grid-template-columns:72px minmax(0,1fr);min-height:520px;position:relative}
+.rail{display:flex;flex-direction:column;background:var(--sunken);border-right:1px solid var(--line);padding:8px 0}
+.rail-item{display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 0;margin:0 6px 2px;border:0;background:none;border-radius:var(--r-control);font-size:11px;color:var(--ink-2);cursor:pointer}
+.rail-item .ic{width:20px;height:20px}
+.rail-item:hover{background:var(--line)}
+.rail-item[aria-current="page"]{background:var(--accent-tint);color:var(--accent-ink);font-weight:500}
+.rail .grow{flex:1}
+.engine{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--ink-3);padding:10px 0 6px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--success);flex:none}
+.dot.starting{background:var(--warning)}
+.dot.down{background:var(--danger)}
+.dot.run{background:var(--accent);animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.main{padding:24px 28px;min-width:0}
+.greet{font-size:20px;font-weight:600;letter-spacing:-.005em}
+.greet-sub{color:var(--ink-2);margin:2px 0 20px;min-height:22px}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:28px}
+.stat{text-align:left;background:var(--sunken);border:1px solid transparent;border-radius:var(--r-card);padding:14px 16px;cursor:pointer;display:block;width:100%}
+.stat:hover{border-color:var(--line-strong)}
+.stat .k{font-size:12.5px;color:var(--ink-2)}
+.stat .v{font-size:28px;line-height:1.15;font-weight:600;letter-spacing:-.01em;margin-top:2px}
+.stat.err .v{font-size:14px;font-weight:500;color:var(--danger);margin-top:6px}
+.stat .retry{font-size:12.5px;color:var(--accent-ink);text-decoration:underline;text-underline-offset:2px;margin-top:4px;display:inline-block}
+.sec-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+.sec-head h4{font-size:14px;font-weight:600}
+.rows{margin-bottom:28px}
+.row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 8px;margin:0 -8px;border:0;border-top:1px solid var(--line);background:none;cursor:pointer;border-radius:0}
+.rows .row:last-child{border-bottom:1px solid var(--line)}
+.row:hover{background:var(--sunken)}
+.row .st{display:flex;align-items:center;gap:6px;font-size:12.5px;width:104px;flex:none;font-weight:500}
+.row .st.running{color:var(--accent-ink)}
+.row .st.completed{color:var(--success)}
+.row .st.failed{color:var(--danger)}
+.row .nm{flex:1;min-width:0}
+.row .nm small{display:block;font-size:12px;color:var(--ink-3)}
+.row .ag{font-size:12.5px;color:var(--ink-2);width:64px;flex:none}
+.row .tm{font-size:12.5px;color:var(--ink-3);width:76px;text-align:right;flex:none}
+.quick{display:flex;gap:8px}
+.skel{position:relative;overflow:hidden;background:var(--line);border-radius:var(--r-control)}
+.skel::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);animation:shimmer 1.4s ease-in-out infinite}
+[data-theme="dark"] .skel::after{background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent)}
+@keyframes shimmer{to{transform:translateX(100%)}}
+.skel-card{height:78px;border-radius:var(--r-card)}
+.skel-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.checklist{border:1px solid var(--line);border-radius:var(--r-card);margin-bottom:28px;overflow:hidden}
+.check-item{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 16px;border:0;border-top:1px solid var(--line);background:none;cursor:pointer}
+.check-item:first-child{border-top:0}
+.check-item:hover{background:var(--sunken)}
+.check-item .box{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--line-strong);display:flex;align-items:center;justify-content:center;flex:none}
+.check-item.done .box{background:var(--success);border-color:var(--success);color:var(--surface)}
+.check-item .txt{flex:1}
+.check-item .txt b{display:block;font-weight:500}
+.check-item .txt span{font-size:12.5px;color:var(--ink-2)}
+.check-item.done .txt b{color:var(--ink-2)}
+.empty{text-align:center;padding:28px 16px;border:1px dashed var(--line-strong);border-radius:var(--r-card);margin-bottom:28px}
+.empty .ei{width:40px;height:40px;border-radius:50%;background:var(--sunken);color:var(--ink-2);display:flex;align-items:center;justify-content:center;margin:0 auto 12px}
+.empty h5{font-size:15px;font-weight:600;margin:0 0 4px}
+.empty p{color:var(--ink-2);font-size:13.5px;max-width:320px;margin:0 auto 14px}
+.stub{padding:8px 0}
+.stub h3{font-size:20px;font-weight:600;margin-bottom:12px}
+.overlay{position:absolute;inset:0;background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px;z-index:5}
+.overlay h4{font-size:18px;font-weight:600;margin:16px 0 6px}
+.overlay p{color:var(--ink-2);max-width:340px;margin-bottom:16px}
+.overlay .bar{width:200px;height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin-top:6px}
+.overlay .bar i{display:block;height:100%;width:40%;background:var(--accent);border-radius:2px;animation:slide 1.4s ease-in-out infinite}
+@keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}
+.overlay .alert{width:44px;height:44px;border-radius:50%;background:var(--danger-tint);color:var(--danger);display:flex;align-items:center;justify-content:center}
+.overlay .alert .ic{width:22px;height:22px}
+
+/* spec panels */
+.spec{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:20px;max-width:880px}
+.spec>div{border:1px solid var(--line);border-radius:var(--r-card);background:var(--surface);padding:14px 16px}
+.spec h4{font-size:12.5px;font-weight:600;color:var(--ink-2);margin-bottom:8px}
+.spec ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.spec li{padding-left:14px;position:relative;color:var(--ink)}
+.spec li::before{content:"";position:absolute;left:0;top:.62em;width:5px;height:1px;background:var(--ink-3)}
+
+/* tokens */
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.sw{border:1px solid var(--line);border-radius:var(--r-card);overflow:hidden;background:var(--surface)}
+.sw .c{height:56px;border-bottom:1px solid var(--line)}
+.sw .t{padding:10px 12px}
+.sw .t b{display:block;font-weight:500;font-size:13px}
+.sw .t span{display:block;font-size:12px;color:var(--ink-2)}
+.sw .t .mono{color:var(--ink-3);margin-top:4px}
+.tbl{width:100%;border-collapse:collapse;font-size:13px;max-width:880px}
+.tbl th{text-align:left;font-weight:600;font-size:12.5px;color:var(--ink-2);padding:8px 12px;border-bottom:1px solid var(--line-strong)}
+.tbl td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl td.mono{color:var(--ink-2)}
+.space-row{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.space-row .bar{height:12px;background:var(--accent);border-radius:2px;opacity:.85}
+.radii{display:flex;gap:16px;flex-wrap:wrap}
+.radii div{width:96px;height:64px;border:1.5px solid var(--accent);background:var(--accent-tint);display:flex;align-items:flex-end;padding:6px 8px;font-size:12px;color:var(--accent-ink)}
+pre{background:var(--ink);color:var(--bg);border-radius:var(--r-card);padding:16px;overflow:auto;font-family:var(--font-mono);font-size:12px;line-height:1.6;max-width:880px;margin:12px 0 0}
+[data-theme="dark"] pre{background:var(--sunken);color:var(--ink);border:1px solid var(--line)}
+.copy{margin-top:8px}
+
+/* components gallery */
+.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;max-width:880px}
+.gcard{border:1px solid var(--line);border-radius:var(--r-card);background:var(--surface);padding:16px}
+.gcard h4{font-family:var(--font-mono);font-size:12.5px;font-weight:500;color:var(--accent-ink);margin-bottom:4px}
+.gcard .d{font-size:12.5px;color:var(--ink-2);margin-bottom:14px}
+.gcard .demo{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
+.gcard.wide{grid-column:1/-1}
+.stack{display:flex;flex-direction:column;gap:12px;width:100%}
+.accept{list-style:none;padding:0;margin:0;max-width:880px;border:1px solid var(--line);border-radius:var(--r-card);background:var(--surface)}
+.accept li{display:grid;grid-template-columns:22px 1fr auto;gap:12px;padding:12px 16px;border-top:1px solid var(--line);align-items:start}
+.accept li:first-child{border-top:0}
+.accept .cb{width:16px;height:16px;border:1.5px solid var(--line-strong);border-radius:4px;margin-top:3px}
+.accept .where{font-size:12.5px;color:var(--ink-3)}
+.decisions{max-width:880px;display:flex;flex-direction:column;gap:12px}
+.decision{border:1px solid var(--line);border-radius:var(--r-card);background:var(--surface);padding:14px 16px}
+.decision b{font-weight:600;display:block;margin-bottom:2px}
+.decision p{color:var(--ink-2);font-size:13.5px}
+
+@media (max-width:900px){
+  .doc{grid-template-columns:1fr;gap:24px;padding:20px 16px 64px}
+  .toc{position:static;flex-direction:row;flex-wrap:wrap;gap:4px}
+  .toc .brand{width:100%;margin-bottom:8px}
+  .toc .theme{margin:0}
+  .stats{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){
+  .skel::after,.spin,.dot.run,.overlay .bar i{animation:none}
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-dashboard" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/></symbol>
+  <symbol id="i-library" viewBox="0 0 24 24"><rect x="4" y="4" width="4" height="16" rx="1"/><rect x="10" y="4" width="4" height="16" rx="1"/><path d="M16.2 6.2l3.6 13.3"/></symbol>
+  <symbol id="i-workspaces" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5M12 16h.01"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+  <symbol id="i-mark" viewBox="0 0 24 24">
+    <g fill="currentColor" stroke="none">
+      <rect x="4.5" y="3.5" width="3" height="5" rx="1"/><rect x="9.5" y="4.5" width="5" height="3" rx="1"/><rect x="16.5" y="3.5" width="3" height="5" rx="1"/>
+      <rect x="3.5" y="10.5" width="5" height="3" rx="1"/><rect x="10.5" y="9.5" width="3" height="5" rx="1"/><rect x="15.5" y="10.5" width="5" height="3" rx="1"/>
+      <rect x="4.5" y="15.5" width="3" height="5" rx="1"/><rect x="9.5" y="16.5" width="5" height="3" rx="1"/><rect x="16.5" y="15.5" width="3" height="5" rx="1"/>
+    </g>
+  </symbol>
+</svg>
+
+<div class="doc">
+<nav class="toc" aria-label="Sections">
+  <div class="brand"><span class="mark" style="width:28px;height:28px;border-radius:8px;margin:0"><svg style="width:18px;height:18px"><use href="#i-mark"/></svg></span>Loom</div>
+  <a href="#tokens">Design tokens</a>
+  <a href="#onboarding">Onboarding</a>
+  <a href="#shell">App shell and dashboard</a>
+  <a href="#components">Shared components</a>
+  <a href="#decisions">Decisions and checklist</a>
+  <button class="btn sm theme" id="themeBtn" type="button">Switch to dark</button>
+</nav>
+
+<main>
+<header class="doc-head">
+  <h1>Issue #8 UI reference</h1>
+  <p>App shell, first-launch onboarding, and home dashboard for Loom. Every screen below is live: switch states, change the provider, and click through the rail to see what each widget should do.</p>
+  <p>Source: <span class="mono">srijan-singh/loom#8</span>. Route names, widget names, and API calls follow the issue.</p>
+  <div class="note-fidelity">Layout, spacing, states, and copy are the spec. The font, icons, and logo mark are placeholders you can swap. Where this file departs from the issue text, it is listed under <a href="#decisions">Decisions and checklist</a>.</div>
+</header>
+
+<!-- ============ TOKENS ============ -->
+<section class="block" id="tokens">
+  <h2>Design tokens</h2>
+  <p class="lede">Named after natural dyes: a single indigo accent, with madder, lichen, and weld for status. Use the theme toggle (left) to see both modes. Never hardcode hex in widgets; read from the theme.</p>
+
+  <div class="swatches" id="swatches"></div>
+
+  <h3 class="sub-h">Type</h3>
+  <p class="lede" style="margin-bottom:12px">Instrument Sans for the interface, JetBrains Mono for code, IDs, and routes. Both are available through the <span class="mono">google_fonts</span> package. Sentence case everywhere.</p>
+  <table class="tbl">
+    <thead><tr><th>Token</th><th>Sample</th><th>Size / line / weight</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">display</td><td style="font-size:28px;line-height:34px;font-weight:600;letter-spacing:-.015em">Your AI workforce</td><td class="mono">28 / 34 / 600</td></tr>
+      <tr><td class="mono">title</td><td style="font-size:20px;line-height:26px;font-weight:600">Connect your AI provider</td><td class="mono">20 / 26 / 600</td></tr>
+      <tr><td class="mono">titleSmall</td><td style="font-size:16px;line-height:22px;font-weight:600">Recent sessions</td><td class="mono">16 / 22 / 600</td></tr>
+      <tr><td class="mono">body</td><td style="font-size:14px;line-height:22px">One session is running.</td><td class="mono">14 / 22 / 400</td></tr>
+      <tr><td class="mono">label</td><td style="font-size:13px;line-height:18px;font-weight:500">Save and continue</td><td class="mono">13 / 18 / 500</td></tr>
+      <tr><td class="mono">caption</td><td style="font-size:12px;line-height:16px;color:var(--ink-3)">4 agents, 12 min ago</td><td class="mono">12 / 16 / 400</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub-h">Spacing, radii, sizes</h3>
+  <div style="max-width:880px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:32px;margin-top:12px">
+    <div>
+      <div class="space-row"><div class="bar" style="width:4px"></div><span class="mono">4 · tight gaps</span></div>
+      <div class="space-row"><div class="bar" style="width:8px"></div><span class="mono">8 · between controls</span></div>
+      <div class="space-row"><div class="bar" style="width:12px"></div><span class="mono">12 · card grid gap</span></div>
+      <div class="space-row"><div class="bar" style="width:16px"></div><span class="mono">16 · card padding</span></div>
+      <div class="space-row"><div class="bar" style="width:24px"></div><span class="mono">24 · content padding</span></div>
+      <div class="space-row"><div class="bar" style="width:32px"></div><span class="mono">32 · section gap</span></div>
+    </div>
+    <div>
+      <div class="radii">
+        <div style="border-radius:6px">6 · control</div>
+        <div style="border-radius:10px">10 · card</div>
+        <div style="border-radius:14px">14 · window</div>
+      </div>
+    </div>
+  </div>
+  <table class="tbl" style="margin-top:20px">
+    <thead><tr><th>Measure</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Left rail width</td><td class="mono">72</td></tr>
+      <tr><td>Control height (buttons, inputs)</td><td class="mono">36 (compact: 30)</td></tr>
+      <tr><td>Minimum window size</td><td class="mono">960 × 640</td></tr>
+      <tr><td>Onboarding form max width</td><td class="mono">400 content, centered</td></tr>
+      <tr><td>Stat card grid</td><td class="mono">3 columns, 12 gap, collapses to 1 below 720</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub-h">Dart tokens</h3>
+  <p class="lede" style="margin-bottom:0">Drop-in constants that match this file. Wire them into <span class="mono">ThemeData</span> or an inherited widget.</p>
+<pre id="dart"><code>import 'package:flutter/material.dart';
+
+@immutable
+class LoomColors {
+  const LoomColors({
+    required this.bg, required this.surface, required this.sunken,
+    required this.ink, required this.ink2, required this.ink3,
+    required this.line, required this.lineStrong,
+    required this.accent, required this.onAccent,
+    required this.accentTint, required this.accentInk,
+    required this.success, required this.successTint,
+    required this.danger, required this.dangerTint,
+    required this.warning, required this.warningTint,
+  });
+
+  final Color bg, surface, sunken, ink, ink2, ink3, line, lineStrong;
+  final Color accent, onAccent, accentTint, accentInk;
+  final Color success, successTint, danger, dangerTint, warning, warningTint;
+
+  static const light = LoomColors(
+    bg: Color(0xFFF1F2F5), surface: Color(0xFFFFFFFF), sunken: Color(0xFFF6F7F9),
+    ink: Color(0xFF161A22), ink2: Color(0xFF4A5261), ink3: Color(0xFF6B7485),
+    line: Color(0xFFE1E4EA), lineStrong: Color(0xFFC4CAD6),
+    accent: Color(0xFF3846B0), onAccent: Color(0xFFFFFFFF),
+    accentTint: Color(0xFFE8EAF8), accentInk: Color(0xFF2A3690),
+    success: Color(0xFF2E7D4F), successTint: Color(0xFFE4F2E9),
+    danger: Color(0xFFB23A2E), dangerTint: Color(0xFFFBE9E6),
+    warning: Color(0xFF8A5F00), warningTint: Color(0xFFFBF1D6),
+  );
+
+  static const dark = LoomColors(
+    bg: Color(0xFF0F1218), surface: Color(0xFF171B23), sunken: Color(0xFF1C212B),
+    ink: Color(0xFFECEFF5), ink2: Color(0xFFA9B1C1), ink3: Color(0xFF8790A2),
+    line: Color(0xFF2A303C), lineStrong: Color(0xFF3B4353),
+    accent: Color(0xFF8E9CF5), onAccent: Color(0xFF0F1218),
+    accentTint: Color(0xFF232A52), accentInk: Color(0xFFB9C2FA),
+    success: Color(0xFF6FCB94), successTint: Color(0xFF163224),
+    danger: Color(0xFFF08A7D), dangerTint: Color(0xFF3A1D19),
+    warning: Color(0xFFE5B94E), warningTint: Color(0xFF33280C),
+  );
+}
+
+class LoomSpace {
+  static const double s4 = 4, s8 = 8, s12 = 12, s16 = 16, s24 = 24, s32 = 32;
+}
+
+class LoomRadius {
+  static const double control = 6, card = 10, window = 14;
+}
+
+class LoomSize {
+  static const double rail = 72, control = 36, controlCompact = 30;
+  static const Size minWindow = Size(960, 640);
+}</code></pre>
+  <button class="btn sm copy" type="button" id="copyDart">Copy Dart</button>
+</section>
+
+<!-- ============ ONBOARDING ============ -->
+<section class="block" id="onboarding">
+  <h2>Onboarding</h2>
+  <p class="lede">Two screens, then the dashboard. The goal is a validated key with as little friction as possible. The second step in "Step 1 of 2" is the MCP setup from ARCHITECTURE.md; it is a stub for now and skips to the dashboard.</p>
+
+  <h3 class="sub-h">Screen 1: Welcome</h3>
+  <div class="meta"><span class="tag">/onboarding/welcome</span><span class="tag">OnboardingScaffold</span><span class="tag">LoomButton.primary</span></div>
+  <div class="win" aria-label="Welcome screen">
+    <div class="win-bar"><i></i><i></i><i></i><span>Loom</span></div>
+    <div class="win-body ob-welcome">
+      <div class="mark"><svg><use href="#i-mark"/></svg></div>
+      <h3>Loom</h3>
+      <p class="tagline">Your AI workforce, on your machine</p>
+      <p class="body">Bring your own AI provider. Connect your tools. We handle the rest.</p>
+      <button class="btn primary" type="button" onclick="document.getElementById('keyWin').scrollIntoView({behavior:'smooth',block:'center'})">Get started</button>
+      <p class="fine">Data goes only to the AI provider and tools you choose.</p>
+    </div>
+  </div>
+  <div class="spec">
+    <div><h4>Layout</h4><ul>
+      <li>Single centered column, vertically centered in the window</li>
+      <li>Mark 56, name 28/600, tagline 16, body 14 at 340 max width</li>
+      <li>Button centered, 24 below body, one primary action only</li>
+      <li>Woven-thread strip along the bottom edge is the one decorative element</li>
+    </ul></div>
+    <div><h4>Behavior</h4><ul>
+      <li>Shown when the onboarding flag is false</li>
+      <li>"Get started" navigates to <span class="mono">/onboarding/api-key</span></li>
+      <li>No back button, no skip</li>
+    </ul></div>
+    <div><h4>Copy</h4><ul>
+      <li>Tagline and body come from the issue, unchanged</li>
+      <li>The fine print states the real data flow: the provider and tools receive prompts and context</li>
+    </ul></div>
+  </div>
+
+  <h3 class="sub-h">Screen 2: API key setup</h3>
+  <div class="meta"><span class="tag">/onboarding/api-key</span><span class="tag">LoomTextField</span><span class="tag">POST /llm/test</span></div>
+  <div class="chips" role="group" aria-label="Key setup state">
+    <span class="lbl">State</span>
+    <button class="chip" type="button" data-key="idle" aria-pressed="true">Idle</button>
+    <button class="chip" type="button" data-key="testing" aria-pressed="false">Testing</button>
+    <button class="chip" type="button" data-key="valid" aria-pressed="false">Key works</button>
+    <button class="chip" type="button" data-key="rejected" aria-pressed="false">Key rejected</button>
+    <button class="chip" type="button" data-key="unreachable" aria-pressed="false">Can't reach provider</button>
+  </div>
+  <div class="win" id="keyWin" aria-label="API key setup screen">
+    <div class="win-bar"><i></i><i></i><i></i><span>Loom</span></div>
+    <div class="win-body">
+      <div class="ob">
+        <div class="ob-top">
+          <button class="back" type="button"><svg class="ic"><use href="#i-back"/></svg>Back</button>
+          <span class="step">Step 1 of 2</span>
+        </div>
+        <h3 class="title">Connect your AI provider</h3>
+        <p class="subtitle">Your key stays in your OS keychain. Loom never sees it.</p>
+
+        <div class="field">
+          <span class="lbl" id="provLbl">Provider</span>
+          <div class="seg" role="radiogroup" aria-labelledby="provLbl" id="provider">
+            <button type="button" role="radio" aria-checked="true" data-p="claude">Claude (Anthropic)</button>
+            <button type="button" role="radio" aria-checked="false" data-p="gpt">GPT (OpenAI)</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="apiKey">API key</label>
+          <div class="input-wrap">
+            <input class="input" id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
+            <button class="input-btn" type="button" id="toggleKey" aria-label="Show key"><svg class="ic"><use href="#i-eye"/></svg></button>
+          </div>
+          <p class="help" id="keyHelp"></p>
+        </div>
+
+        <div class="field">
+          <label for="model">Model</label>
+          <select class="input" id="model"></select>
+          <p class="help"><button class="link" type="button">Use a custom model ID</button></p>
+        </div>
+
+        <div class="status" id="keyStatus" role="status" aria-live="polite"></div>
+
+        <div class="actions">
+          <button class="btn" type="button" id="testBtn">Test key</button>
+          <button class="btn primary" type="button" id="saveBtn">Save and continue</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="spec">
+    <div><h4>State</h4><ul>
+      <li><span class="mono">selectedProvider</span>, <span class="mono">apiKey</span>, <span class="mono">selectedModel</span></li>
+      <li><span class="mono">testState</span>: idle, testing, valid, rejected, unreachable</li>
+      <li>Pick one approach (setState or Riverpod) and use it for the whole app</li>
+    </ul></div>
+    <div><h4>Behavior</h4><ul>
+      <li>Test key calls <span class="mono">POST /llm/test</span>. On success it fills the model list from the provider</li>
+      <li>Save and continue runs the test first if the key is untested, and saves only on success</li>
+      <li>Save writes the key to <span class="mono">flutter_secure_storage</span>; provider, model, and the onboarding flag go to <span class="mono">shared_preferences</span></li>
+      <li>Then go to <span class="mono">/onboarding/mcp-setup</span>, or <span class="mono">/dashboard</span> while that route is a stub</li>
+    </ul></div>
+    <div><h4>Errors and copy</h4><ul>
+      <li>Results are inline, never a SnackBar. A rejected key stays visible next to the field</li>
+      <li>A rejected key and a network failure use different copy, so nobody re-pastes a good key</li>
+      <li>Empty key: "Enter your API key."</li>
+      <li>Model list is not hardcoded. Keep the custom ID link as a fallback</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- ============ SHELL + DASHBOARD ============ -->
+<section class="block" id="shell">
+  <h2>App shell and dashboard</h2>
+  <p class="lede">The rail is the navigation skeleton every later screen drops into. The dashboard is the default route. Click the rail items, then use the state switcher to review every state.</p>
+  <div class="meta"><span class="tag">AppShell</span><span class="tag">/dashboard</span><span class="tag">StatCard</span><span class="tag">SessionRow</span><span class="tag">EmptyState</span><span class="tag">SkeletonLoader</span></div>
+
+  <div class="chips" role="group" aria-label="Dashboard state">
+    <span class="lbl">State</span>
+    <button class="chip" type="button" data-scene="populated" aria-pressed="true">Populated</button>
+    <button class="chip" type="button" data-scene="loading" aria-pressed="false">Loading</button>
+    <button class="chip" type="button" data-scene="new" aria-pressed="false">New user</button>
+    <button class="chip" type="button" data-scene="starting" aria-pressed="false">Engine starting</button>
+    <button class="chip" type="button" data-scene="down" aria-pressed="false">Engine unreachable</button>
+    <button class="chip action" type="button" id="sseBtn">Simulate SSE event</button>
+  </div>
+
+  <div class="win" aria-label="App shell with dashboard">
+    <div class="win-bar"><i></i><i></i><i></i><span>Loom</span></div>
+    <div class="shell" id="shellBody">
+      <nav class="rail" aria-label="Main">
+        <button class="rail-item" type="button" data-nav="dashboard" aria-current="page"><svg class="ic"><use href="#i-dashboard"/></svg>Dashboard</button>
+        <button class="rail-item" type="button" data-nav="library"><svg class="ic"><use href="#i-library"/></svg>Library</button>
+        <button class="rail-item" type="button" data-nav="workspaces"><svg class="ic"><use href="#i-workspaces"/></svg>Workspaces</button>
+        <span class="grow"></span>
+        <button class="rail-item" type="button" data-nav="settings"><svg class="ic"><use href="#i-settings"/></svg>Settings</button>
+        <div class="engine" id="engineInd"><span class="dot" id="engineDot"></span><span id="engineTxt">Engine</span></div>
+      </nav>
+
+      <div class="main">
+        <div id="viewDashboard">
+          <h3 class="greet" id="greet">Good morning</h3>
+          <p class="greet-sub" id="greetSub"></p>
+
+          <div id="statsPop" class="stats"></div>
+          <div id="statsLoad" class="stats" hidden>
+            <div class="skel skel-card"></div><div class="skel skel-card"></div><div class="skel skel-card"></div>
+          </div>
+          <div id="setup" class="checklist" hidden>
+            <button class="check-item done" type="button"><span class="box"><svg class="ic" style="width:12px;height:12px;stroke-width:2.5"><use href="#i-check"/></svg></span><span class="txt"><b>Connect your AI provider</b><span>Done</span></span></button>
+            <button class="check-item" type="button"><span class="box"></span><span class="txt"><b>Connect a tool</b><span>Give agents access to GitHub, Figma, or your files.</span></span><svg class="ic"><use href="#i-chev"/></svg></button>
+            <button class="check-item" type="button"><span class="box"></span><span class="txt"><b>Add a skill</b><span>Write the instructions an agent follows.</span></span><svg class="ic"><use href="#i-chev"/></svg></button>
+            <button class="check-item" type="button"><span class="box"></span><span class="txt"><b>Create an agent</b><span>Pair a skill with the tools it may use.</span></span><svg class="ic"><use href="#i-chev"/></svg></button>
+          </div>
+
+          <div class="sec-head"><h4>Recent sessions</h4><button class="link" type="button" id="viewAll">View all</button></div>
+          <div id="sessPop" class="rows"></div>
+          <div id="sessLoad" class="rows" hidden></div>
+          <div id="sessEmpty" class="empty" hidden>
+            <div class="ei"><svg class="ic" style="width:20px;height:20px"><use href="#i-list"/></svg></div>
+            <h5>Run your first workflow</h5>
+            <p>Sessions show up here once a workflow runs. A template is the fastest way to get one going.</p>
+            <button class="btn sm" type="button">Use a template</button>
+          </div>
+
+          <div class="quick">
+            <button class="btn primary" type="button"><svg class="ic"><use href="#i-plus"/></svg>New workspace</button>
+            <button class="btn" type="button">Use a template</button>
+          </div>
+        </div>
+
+        <div id="viewStub" class="stub" hidden>
+          <h3 id="stubTitle">Library</h3>
+          <div class="empty" style="margin-bottom:0">
+            <div class="ei"><svg class="ic" style="width:20px;height:20px"><use href="#i-list"/></svg></div>
+            <h5 id="stubHead">Coming in the next issue</h5>
+            <p id="stubBody">This route is a stub in issue #8. The rail should still highlight it and switch content.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="overlay" id="overlayStarting" hidden>
+        <div class="spin" style="width:28px;height:28px;border-width:3px"></div>
+        <h4>Starting the Loom engine…</h4>
+        <p>This usually takes a few seconds.</p>
+        <div class="bar"><i></i></div>
+      </div>
+      <div class="overlay" id="overlayDown" hidden>
+        <div class="alert"><svg class="ic"><use href="#i-alert"/></svg></div>
+        <h4>Can't reach the Loom engine</h4>
+        <p>It may have stopped. Retry, or check the logs for details.</p>
+        <div style="display:flex;gap:8px"><button class="btn primary" type="button" data-scene="starting">Retry</button><button class="btn" type="button">View logs</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="spec">
+    <div><h4>Data</h4><ul>
+      <li><span class="mono">GET /skills</span> count, <span class="mono">GET /mcps</span> count where status is CONNECTED, <span class="mono">GET /agents</span> count</li>
+      <li><span class="mono">GET /sessions?limit=5&amp;sort=recent</span> for the list</li>
+      <li><span class="mono">GET /events</span> (SSE) keeps running rows live: a finished session flips its status without a refetch</li>
+      <li>All calls go through <span class="mono">api_client.dart</span></li>
+    </ul></div>
+    <div><h4>Layout</h4><ul>
+      <li>Greeting is time-based: morning before 12, afternoon before 17, evening after</li>
+      <li>Stat cards are 3 columns and are tappable: each opens its Library tab</li>
+      <li>Session row: status icon and word, workflow name, agent count, relative time (via <span class="mono">intl</span>)</li>
+      <li>Quick start sits below the list, one primary button</li>
+    </ul></div>
+    <div><h4>States</h4><ul>
+      <li>Loading: skeleton cards and three skeleton rows, no spinner</li>
+      <li>New user: setup checklist replaces the stat row; empty sessions get an invitation, not an error</li>
+      <li>One failing endpoint shows an error inside its own stat card, not a failed page</li>
+      <li>Engine down or starting: full-window state, shell content never renders empty counts</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- ============ COMPONENTS ============ -->
+<section class="block" id="components">
+  <h2>Shared components</h2>
+  <p class="lede">The six widgets the issue asks for, plus the states each needs. Build these once; the Library and Canvas issues reuse them.</p>
+  <div class="gallery">
+    <div class="gcard">
+      <h4>LoomButton</h4>
+      <p class="d">Primary, secondary, destructive. Add a ghost for low-emphasis actions. One primary per view. Keep buttons enabled and respond on tap rather than disabling.</p>
+      <div class="demo">
+        <button class="btn primary" type="button">Save and continue</button>
+        <button class="btn" type="button">Test key</button>
+        <button class="btn destructive" type="button">Delete agent</button>
+        <button class="btn ghost" type="button">View all</button>
+        <button class="btn" type="button"><span class="spin"></span>Testing…</button>
+      </div>
+    </div>
+
+    <div class="gcard">
+      <h4>LoomTextField</h4>
+      <p class="d">Label above, 36 high, obscure toggle when needed. Errors sit below the field and stay until the value changes.</p>
+      <div class="stack">
+        <div class="field" style="margin:0"><label for="g1">Workspace name</label><input class="input" id="g1" placeholder="Landing page redesign"></div>
+        <div class="field" style="margin:0"><label for="g2">API key</label><div class="input-wrap"><input class="input" id="g2" type="password" value="sk-ant-123456"><span class="input-btn"><svg class="ic"><use href="#i-eye"/></svg></span></div></div>
+        <div class="field" style="margin:0"><label for="g3">API key</label><input class="input error" id="g3" value="sk-ant-bad"><p class="help error">That key was rejected. Check it and try again.</p></div>
+      </div>
+    </div>
+
+    <div class="gcard">
+      <h4>StatCard</h4>
+      <p class="d">Count and label. Tappable, opens the matching Library tab. Own error state so one failed call doesn't blank the row.</p>
+      <div class="demo" style="flex-wrap:nowrap">
+        <button class="stat" type="button" style="flex:1"><div class="k">Skills</div><div class="v">4</div></button>
+        <button class="stat err" type="button" style="flex:1"><div class="k">MCPs connected</div><div class="v">Couldn't load</div><span class="retry">Retry</span></button>
+      </div>
+    </div>
+
+    <div class="gcard">
+      <h4>SessionRow</h4>
+      <p class="d">Status is an icon plus a word, never color alone. A failed row can carry a one-line reason.</p>
+      <div class="rows" style="margin:0 0 0 8px" id="galleryRows"></div>
+    </div>
+
+    <div class="gcard">
+      <h4>EmptyState</h4>
+      <p class="d">Icon, headline that names the space, one line of body, one verb-first action. Never apologize.</p>
+      <div class="empty" style="margin:0;width:100%">
+        <div class="ei"><svg class="ic" style="width:20px;height:20px"><use href="#i-list"/></svg></div>
+        <h5>Add your first skill</h5>
+        <p>Skills are the instructions an agent follows.</p>
+        <button class="btn sm" type="button">Create skill</button>
+      </div>
+    </div>
+
+    <div class="gcard">
+      <h4>SkeletonLoader</h4>
+      <p class="d">Rectangular placeholder with a slow shimmer. Match the size of what will replace it. Turn the shimmer off when reduced motion is on.</p>
+      <div class="stack">
+        <div class="skel" style="height:14px;width:60%"></div>
+        <div class="skel" style="height:14px;width:90%"></div>
+        <div class="skel skel-card"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DECISIONS ============ -->
+<section class="block" id="decisions">
+  <h2>Decisions and checklist</h2>
+  <p class="lede">Places where this reference deliberately departs from, or tightens, the issue text.</p>
+  <div class="decisions">
+    <div class="decision"><b>One redirect rule</b><p>The issue redirects when "no API key stored" but shows Welcome when the onboarding flag is false. Use the flag for first launch. If a key is later missing, send the user to Settings with a banner instead of replaying onboarding.</p></div>
+    <div class="decision"><b>Inline test result, not a SnackBar</b><p>A SnackBar disappears. Key errors need to stay next to the field, and rejected keys and network failures need different copy.</p></div>
+    <div class="decision"><b>Model list comes from the provider</b><p>The hardcoded IDs in the issue (for example <span class="mono">claude-3-5-sonnet-20241022</span>) will go stale. Fetch the list once the key validates, and keep a custom model ID fallback.</p></div>
+    <div class="decision"><b>Engine address and token</b><p>The issue defaults <span class="mono">LOOM_ENGINE_URL</span> to <span class="mono">http://localhost:7070</span>. ARCHITECTURE.md says the engine picks an ephemeral port and requires a per-launch token on every request. Fine for development, but give <span class="mono">api_client</span> and <span class="mono">sse_service</span> a token parameter now, and design for the "engine starting" and "unreachable" states above.</p></div>
+    <div class="decision"><b>New-user dashboard</b><p>Three zero counts tell a new user nothing. Show the setup checklist until the first skill, tool, and agent exist, then switch to the stat cards.</p></div>
+    <div class="decision"><b>Minimum window size</b><p>The issue says "desktop-width" without a number. Set 960 × 640 in the macOS runner so the rail and content never collapse.</p></div>
+  </div>
+
+  <h3 class="sub-h">Acceptance criteria map</h3>
+  <ul class="accept">
+    <li><span class="cb"></span><span>Fresh install redirects to Welcome; after "Save and continue" lands on Dashboard</span><span class="where">Onboarding, both screens</span></li>
+    <li><span class="cb"></span><span>Dashboard stat cards show live counts from the running Java engine</span><span class="where">Populated, per-card error</span></li>
+    <li><span class="cb"></span><span>Recent sessions render with correct status dots and relative timestamps</span><span class="where">Populated, Simulate SSE event</span></li>
+    <li><span class="cb"></span><span>Left-rail navigation switches between Dashboard, Library, Workspaces, Settings</span><span class="where">Click the rail</span></li>
+    <li><span class="cb"></span><span>API key stored via <span class="mono">flutter_secure_storage</span>, not plain SharedPreferences</span><span class="where">API key behavior</span></li>
+    <li><span class="cb"></span><span>All network calls go through <span class="mono">api_client.dart</span></span><span class="where">Dashboard data</span></li>
+    <li><span class="cb"></span><span>App builds and runs on the macOS desktop target</span><span class="where">Minimum window size</span></li>
+  </ul>
+</section>
+</main>
+</div>
+
+<script>
+(function(){
+  var $=function(s,r){return (r||document).querySelector(s)};
+  var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+  var ic=function(id){return '<svg class="ic" aria-hidden="true"><use href="#'+id+'"/></svg>'};
+
+  /* theme */
+  var root=document.documentElement,themeBtn=$('#themeBtn');
+  if(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){root.dataset.theme='dark'}
+  function syncTheme(){themeBtn.textContent=root.dataset.theme==='dark'?'Switch to light':'Switch to dark';drawSwatches()}
+  themeBtn.addEventListener('click',function(){root.dataset.theme=root.dataset.theme==='dark'?'light':'dark';syncTheme()});
+
+  /* swatches */
+  var tokens=[
+    ['bg','Page canvas','#F1F2F5','#0F1218'],
+    ['surface','Windows, cards, inputs','#FFFFFF','#171B23'],
+    ['sunken','Rail, stat cards, hover','#F6F7F9','#1C212B'],
+    ['ink','Primary text','#161A22','#ECEFF5'],
+    ['ink2','Supporting text','#4A5261','#A9B1C1'],
+    ['ink3','Captions, placeholders','#6B7485','#8790A2'],
+    ['line','Hairlines','#E1E4EA','#2A303C'],
+    ['lineStrong','Input borders','#C4CAD6','#3B4353'],
+    ['accent','Primary actions, active nav (indigo)','#3846B0','#8E9CF5'],
+    ['accentTint','Selected, active rail item','#E8EAF8','#232A52'],
+    ['accentInk','Text on accent tint','#2A3690','#B9C2FA'],
+    ['success','Completed (lichen)','#2E7D4F','#6FCB94'],
+    ['danger','Failed, errors (madder)','#B23A2E','#F08A7D'],
+    ['warning','Cautions (weld)','#8A5F00','#E5B94E']
+  ];
+  var cssName={bg:'--bg',surface:'--surface',sunken:'--sunken',ink:'--ink',ink2:'--ink-2',ink3:'--ink-3',line:'--line',lineStrong:'--line-strong',accent:'--accent',accentTint:'--accent-tint',accentInk:'--accent-ink',success:'--success',danger:'--danger',warning:'--warning'};
+  function drawSwatches(){
+    $('#swatches').innerHTML=tokens.map(function(t){
+      return '<div class="sw"><div class="c" style="background:var('+cssName[t[0]]+')"></div><div class="t"><b class="mono" style="font-size:12.5px">'+t[0]+'</b><span>'+t[1]+'</span><span class="mono">'+t[2]+' · '+t[3]+'</span></div></div>';
+    }).join('');
+  }
+
+  /* copy dart */
+  $('#copyDart').addEventListener('click',function(){
+    var b=this,txt=$('#dart').textContent;
+    function done(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy Dart'},1400)}
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done,done)}else{done()}
+  });
+
+  /* ===== api key screen ===== */
+  var provider='claude',keyState='idle';
+  var PROV={
+    claude:{name:'Anthropic',ph:'sk-ant-…',fake:'sk-ant-api03-xxxxxxxx',models:['claude-sonnet-5','claude-opus-5-5','claude-haiku-4-5-20251001']},
+    gpt:{name:'OpenAI',ph:'sk-…',fake:'sk-proj-xxxxxxxx',models:['gpt-4o','gpt-4o-mini']}
+  };
+  var apiKey=$('#apiKey'),model=$('#model'),status=$('#keyStatus'),help=$('#keyHelp');
+  var busyTimer=null;
+
+  function setKey(s,opts){
+    keyState=s;
+    $$('[data-key]').forEach(function(c){c.setAttribute('aria-pressed',String(c.dataset.key===s))});
+    var p=PROV[provider];
+    apiKey.placeholder=p.ph;
+    apiKey.classList.remove('error');help.textContent='';help.className='help';
+    status.className='status';status.innerHTML='';
+    var populated=false;
+    if(!(opts&&opts.keepValue)){apiKey.value=(s==='idle')?'':(s==='rejected'?'sk-bad-key':p.fake)}
+    if(s==='testing'){status.className='status busy';status.innerHTML='<span class="spin"></span>Testing your key…'}
+    if(s==='valid'){status.className='status ok';status.innerHTML=ic('i-check')+'Key works. '+p.models.length+' models available.';populated=true}
+    if(s==='rejected'){apiKey.classList.add('error');help.className='help error';help.textContent=(opts&&opts.msg)||'That key was rejected. Check it and try again.'}
+    if(s==='unreachable'){status.className='status warn';status.innerHTML=ic('i-alert')+'Couldn\u2019t reach '+p.name+'. Check your connection, then test again.'}
+    if(populated){
+      model.disabled=false;
+      model.innerHTML=p.models.map(function(m){return '<option>'+m+'</option>'}).join('');
+    }else{
+      model.disabled=true;
+      model.innerHTML='<option>Test your key to load models</option>';
+    }
+    $('#testBtn').innerHTML=(s==='testing')?'<span class="spin"></span>Testing…':'Test key';
+  }
+  $$('[data-key]').forEach(function(c){c.addEventListener('click',function(){clearTimeout(busyTimer);setKey(c.dataset.key)})});
+
+  function runTest(after){
+    if(!apiKey.value.trim()){setKey('rejected',{keepValue:true,msg:'Enter your API key.'});return}
+    setKey('testing',{keepValue:true});
+    clearTimeout(busyTimer);
+    busyTimer=setTimeout(function(){setKey('valid',{keepValue:true});if(after)after()},900);
+  }
+  $('#testBtn').addEventListener('click',function(){runTest()});
+  $('#saveBtn').addEventListener('click',function(){
+    if(keyState==='valid'){
+      status.className='status ok';status.innerHTML=ic('i-check')+'Saved. Taking you to the dashboard.';
+    }else{
+      runTest(function(){status.className='status ok';status.innerHTML=ic('i-check')+'Saved. Taking you to the dashboard.'});
+    }
+  });
+  apiKey.addEventListener('input',function(){
+    if(keyState==='rejected'){apiKey.classList.remove('error');help.textContent='';help.className='help'}
+  });
+  $('#toggleKey').addEventListener('click',function(){
+    var show=apiKey.type==='password';
+    apiKey.type=show?'text':'password';
+    this.setAttribute('aria-label',show?'Hide key':'Show key');
+    this.innerHTML=ic(show?'i-eye-off':'i-eye');
+  });
+  $$('#provider button').forEach(function(b){b.addEventListener('click',function(){
+    provider=b.dataset.p;
+    $$('#provider button').forEach(function(x){x.setAttribute('aria-checked',String(x===b))});
+    clearTimeout(busyTimer);
+    setKey(keyState==='testing'?'idle':keyState);
+  })});
+  setKey('idle');
+
+  /* ===== dashboard ===== */
+  var sessions=[
+    {name:'UX persona review',agents:4,time:'Just now',status:'running'},
+    {name:'Issue triage',agents:2,time:'Yesterday',status:'completed'},
+    {name:'Design handoff',agents:3,time:'2 days ago',status:'failed',reason:'Design agent timed out'}
+  ];
+  var sseDone=false,scene='populated',nav='dashboard';
+
+  function stIcon(s){
+    if(s==='running')return '<span class="dot run"></span>Running';
+    if(s==='completed')return ic('i-check')+'Completed';
+    return ic('i-x')+'Failed';
+  }
+  function rowHtml(r){
+    var s=r.status;
+    if(r.status==='running'&&sseDone){s='completed'}
+    var t=(r.status==='running'&&sseDone)?'Just now':r.time;
+    return '<button class="row" type="button"><span class="st '+s+'">'+stIcon(s)+'</span><span class="nm">'+r.name+(r.reason?'<small>'+r.reason+'</small>':'')+'</span><span class="ag">'+r.agents+' agents</span><span class="tm">'+t+'</span></button>';
+  }
+  function statHtml(){
+    return [['Skills',4],['MCPs connected',2],['Agents',3]].map(function(x){
+      return '<button class="stat" type="button"><div class="k">'+x[0]+'</div><div class="v">'+x[1]+'</div></button>';
+    }).join('');
+  }
+  function skelRows(){
+    var one='<div class="skel-row"><div class="skel" style="width:90px;height:14px"></div><div class="skel" style="flex:1;height:14px"></div><div class="skel" style="width:56px;height:14px"></div><div class="skel" style="width:64px;height:14px"></div></div>';
+    return one+one+one;
+  }
+  function greeting(){
+    var h=new Date().getHours();
+    return h<12?'Good morning':(h<17?'Good afternoon':'Good evening');
+  }
+  function renderDash(){
+    $('#greet').textContent=greeting();
+    $('#statsPop').innerHTML=statHtml();
+    $('#sessPop').innerHTML=sessions.map(rowHtml).join('');
+    $('#sessLoad').innerHTML=skelRows();
+    var isNew=scene==='new',isLoad=scene==='loading';
+    $('#statsPop').hidden=isNew||isLoad;
+    $('#statsLoad').hidden=!isLoad;
+    $('#setup').hidden=!isNew;
+    $('#sessPop').hidden=isNew||isLoad;
+    $('#sessLoad').hidden=!isLoad;
+    $('#sessEmpty').hidden=!isNew;
+    var sub='';
+    if(scene==='populated'){sub=sseDone?'All sessions have finished.':'One session is running.'}
+    if(isNew){sub='Set up Loom to run your first workflow.'}
+    $('#greetSub').textContent=sub;
+  }
+  function setNav(n){
+    nav=n;
+    $$('[data-nav]').forEach(function(b){
+      if(b.dataset.nav===n){b.setAttribute('aria-current','page')}else{b.removeAttribute('aria-current')}
+    });
+    var dash=n==='dashboard';
+    $('#viewDashboard').hidden=!dash;$('#viewStub').hidden=dash;
+    if(!dash){
+      var names={library:'Library',workspaces:'Workspaces',settings:'Settings'};
+      $('#stubTitle').textContent=names[n];
+      $('#stubHead').textContent=(n==='library')?'Arrives in the next issue':(n==='workspaces'?'Arrives with the canvas issues':'Settings content is out of scope');
+      $('#stubBody').textContent='This route is a stub in issue #8. The rail still highlights it and switches content.';
+    }
+  }
+  function setEngine(state){
+    var dot=$('#engineDot'),txt=$('#engineTxt');
+    dot.className='dot'+(state==='starting'?' starting':(state==='down'?' down':''));
+    txt.textContent=state==='starting'?'Starting':(state==='down'?'Offline':'Engine');
+    $('#overlayStarting').hidden=state!=='starting';
+    $('#overlayDown').hidden=state!=='down';
+  }
+  function setScene(s){
+    scene=s;
+    $$('[data-scene].chip').forEach(function(c){c.setAttribute('aria-pressed',String(c.dataset.scene===s))});
+    if(s==='starting'||s==='down'){setEngine(s)}else{setEngine('ok');setNav('dashboard')}
+    renderDash();
+  }
+  $$('.chip[data-scene]').forEach(function(c){c.addEventListener('click',function(){setScene(c.dataset.scene)})});
+  $('#overlayDown [data-scene]').addEventListener('click',function(){
+    setScene('starting');
+    setTimeout(function(){if(scene==='starting'){setScene('populated')}},1800);
+  });
+  $$('[data-nav]').forEach(function(b){b.addEventListener('click',function(){
+    if(scene==='starting'||scene==='down')return;
+    setNav(b.dataset.nav)
+  })});
+  $('#viewAll').addEventListener('click',function(){});
+  $('#sseBtn').addEventListener('click',function(){
+    sseDone=!sseDone;
+    if(scene!=='populated'){setScene('populated')}else{renderDash()}
+  });
+
+  /* gallery session rows */
+  $('#galleryRows').innerHTML=sessions.map(function(r){
+    var c={name:r.name,agents:r.agents,time:r.time,status:r.status,reason:r.reason};
+    return rowHtml(c).replace('class="row"','class="row" style="cursor:default"');
+  }).join('');
+
+  syncTheme();
+  renderDash();
+  setEngine('ok');
+})();
+</script>
+</body>
+</html>

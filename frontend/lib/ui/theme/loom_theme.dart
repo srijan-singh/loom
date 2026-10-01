@@ -226,8 +226,6 @@ abstract class LoomTheme {
           onError: colors.surface,
           surface: colors.surface,
           onSurface: colors.ink,
-          background: colors.bg,
-          onBackground: colors.ink,
         ),
         scaffoldBackgroundColor: colors.bg,
         cardColor: colors.surface,

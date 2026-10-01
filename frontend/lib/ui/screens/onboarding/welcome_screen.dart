@@ -114,7 +114,7 @@ class _WovenStrip extends StatelessWidget {
       shaderCallback: (rect) => LinearGradient(
         begin: Alignment.bottomCenter,
         end: Alignment.topCenter,
-        colors: [colors.line.withOpacity(0.8), Colors.transparent],
+        colors: [colors.line.withValues(alpha: 0.8), Colors.transparent],
       ).createShader(rect),
       blendMode: BlendMode.srcATop,
       child: CustomPaint(

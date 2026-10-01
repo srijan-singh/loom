@@ -36,13 +36,17 @@ import com.loom.domain.WorkflowNode;
 import com.loom.domain.WorkspaceKnowledge;
 import com.loom.event.EventType;
 import com.loom.event.WorkflowEvent;
+import com.loom.llm.LLMConnection;
 import com.loom.llm.LLMGateway;
 import com.loom.llm.LLMMessage;
 import com.loom.llm.LLMRequest;
 import com.loom.llm.LLMResponse;
+import com.loom.llm.OpenAICompatibleProvider;
+import com.loom.llm.ProviderConfig;
 import com.loom.mcp.MCPClient;
 import com.loom.storage.repository.AgentExecutionRepository;
 import com.loom.storage.repository.AgentRepository;
+import com.loom.storage.repository.LLMConnectionRepository;
 import com.loom.storage.repository.SessionRepository;
 import com.loom.storage.repository.SkillRepository;
 import com.loom.storage.repository.WorkflowRepository;
@@ -76,6 +80,7 @@ public class AgentRuntime {
     private final SessionRepository sessionRepository;
     private final WorkflowRepository workflowRepository;
     private final AgentRepository agentRepository;
+    private final LLMConnectionRepository llmConnectionRepo;
     private final ContextBuilder contextBuilder;
     private final ReportWriter reportWriter;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -102,7 +107,8 @@ public class AgentRuntime {
             AgentExecutionRepository executionRepository,
             SessionRepository sessionRepository,
             WorkflowRepository workflowRepository,
-            AgentRepository agentRepository) {
+            AgentRepository agentRepository,
+            LLMConnectionRepository llmConnectionRepo) {
         this.llmGateway = llmGateway;
         this.mcpClient = mcpClient;
         this.sseManager = sseManager;
@@ -112,6 +118,7 @@ public class AgentRuntime {
         this.sessionRepository = sessionRepository;
         this.workflowRepository = workflowRepository;
         this.agentRepository = agentRepository;
+        this.llmConnectionRepo = llmConnectionRepo;
         this.contextBuilder = new ContextBuilder(mcpClient);
         this.reportWriter = new ReportWriter(knowledgeRepository);
     }
@@ -250,6 +257,9 @@ public class AgentRuntime {
                             ? knowledgeRepository.findByWorkspaceId(session.getWorkspaceId())
                             : Collections.emptyList();
 
+            // Resolve per-execution LLM gateway
+            LLMGateway effectiveGateway = resolveGateway(agent);
+
             // 4. Build LLM request
             LLMRequest request =
                     contextBuilder.build(agent, session, skillContent, inputContext, knowledge);
@@ -260,7 +270,7 @@ public class AgentRuntime {
             final boolean[] hadToolCall = {false};
             final LLMRequest[] current = {request};
 
-            llmGateway.send(
+            effectiveGateway.send(
                     current[0],
                     response -> {
                         if (Thread.currentThread().isInterrupted()) {
@@ -334,7 +344,7 @@ public class AgentRuntime {
 
             // Follow-up turn if there was a tool call
             if (hadToolCall[0]) {
-                llmGateway.send(
+                effectiveGateway.send(
                         current[0],
                         response -> {
                             if (Thread.currentThread().isInterrupted()) {
@@ -472,13 +482,32 @@ public class AgentRuntime {
     }
 
     /**
-     * Broadcasts a {@link WorkflowEvent} to all connected SSE clients. Swallows and logs any
-     * exception to prevent broadcast failures from interrupting node execution.
+     * Resolves the {@link LLMGateway} for one execution:
      *
-     * @param sessionId id of the session associated with the event
-     * @param type the event type to broadcast
-     * @param data additional key/value data to include in the event payload
+     * <ol>
+     *   <li>If the agent has a specific {@code llmConnectionId}, look it up.
+     *   <li>If not (or if the connection is missing), fall back to the default connection.
+     *   <li>If still missing, use the startup-wired {@link #llmGateway}.
+     * </ol>
      */
+    private LLMGateway resolveGateway(AgentDefinition agent) {
+        String connId = agent.getLlmConnectionId();
+        Optional<LLMConnection> conn =
+                connId != null
+                        ? llmConnectionRepo.findById(connId)
+                        : llmConnectionRepo.findDefault();
+
+        return conn.map(
+                        c ->
+                                (LLMGateway)
+                                        new OpenAICompatibleProvider(
+                                                new ProviderConfig(
+                                                        c.getBaseUrl(),
+                                                        c.getApiKey(),
+                                                        c.getModel())))
+                .orElse(llmGateway);
+    }
+
     private void broadcast(String sessionId, EventType type, Map<String, Object> data) {
         try {
             WorkflowEvent event =

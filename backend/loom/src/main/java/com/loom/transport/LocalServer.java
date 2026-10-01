@@ -25,12 +25,14 @@ import com.loom.engine.agent.AgentRuntime;
 import com.loom.engine.graph.GraphResolver;
 import com.loom.storage.repository.AgentExecutionRepository;
 import com.loom.storage.repository.AgentRepository;
+import com.loom.storage.repository.LLMConnectionRepository;
 import com.loom.storage.repository.MCPConnectionRepository;
 import com.loom.storage.repository.SessionRepository;
 import com.loom.storage.repository.SkillRepository;
 import com.loom.storage.repository.WorkflowRepository;
 import com.loom.storage.repository.WorkspaceRepository;
 import com.loom.transport.routes.AgentRoutes;
+import com.loom.transport.routes.LLMRoutes;
 import com.loom.transport.routes.MCPRoutes;
 import com.loom.transport.routes.SessionRoutes;
 import com.loom.transport.routes.SkillRoutes;
@@ -68,6 +70,7 @@ public class LocalServer {
     private final WorkflowRepository workflowRepository;
     private final WorkspaceRepository workspaceRepository;
     private final GraphResolver graphResolver;
+    private final LLMConnectionRepository llmConnectionRepository;
     private Javalin app;
 
     public LocalServer(
@@ -82,7 +85,8 @@ public class LocalServer {
             AgentExecutionRepository executionRepository,
             WorkflowRepository workflowRepository,
             WorkspaceRepository workspaceRepository,
-            GraphResolver graphResolver) {
+            GraphResolver graphResolver,
+            LLMConnectionRepository llmConnectionRepository) {
         this.expectedToken = expectedToken != null ? expectedToken.strip() : null;
         this.sseManager = sseManager;
         this.agentRuntime = agentRuntime;
@@ -95,6 +99,7 @@ public class LocalServer {
         this.workflowRepository = workflowRepository;
         this.workspaceRepository = workspaceRepository;
         this.graphResolver = graphResolver;
+        this.llmConnectionRepository = llmConnectionRepository;
     }
 
     public void start(int port) {
@@ -105,6 +110,7 @@ public class LocalServer {
         SessionRoutes sessionRoutes =
                 new SessionRoutes(sessionRepository, workflowEngine, executionRepository);
         WorkspaceRoutes workspaceRoutes = new WorkspaceRoutes(workspaceRepository);
+        LLMRoutes llmRoutes = new LLMRoutes(llmConnectionRepository);
 
         app =
                 Javalin.create(
@@ -139,14 +145,14 @@ public class LocalServer {
                                             });
                                     config.routes.get(
                                             "/health",
-                                            ctx -> ctx.json(
-                                                    java.util.Map.of("status", "ok")));
+                                            ctx -> ctx.json(java.util.Map.of("status", "ok")));
                                     agentRoutes.register(config.routes);
                                     workflowRoutes.register(config.routes);
                                     skillRoutes.register(config.routes);
                                     mcpRoutes.register(config.routes);
                                     sessionRoutes.register(config.routes);
                                     workspaceRoutes.register(config.routes);
+                                    llmRoutes.register(config.routes);
                                 })
                         .start(port);
         log.info("Started Loom engine on port {}", port);

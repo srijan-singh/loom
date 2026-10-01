@@ -88,7 +88,7 @@ spotless {
         // Google Java Format keeps indentation at 2 spaces per its spec,
         // which is the de-facto standard formatter for Java at Google scale.
         // Use AOSP style (4-space indent) to match the project's existing code.
-        googleJavaFormat("1.25.2").aosp().reflowLongStrings(false)
+        googleJavaFormat("1.27.0").aosp().reflowLongStrings(false)
 
         // Remove any import that is no longer referenced.
         removeUnusedImports()
@@ -130,6 +130,7 @@ tasks.named("check") {
 
 tasks.test {
     useJUnitPlatform()
+    jvmArgs("-Dnet.bytebuddy.experimental=true")
 }
 
 tasks.shadowJar {

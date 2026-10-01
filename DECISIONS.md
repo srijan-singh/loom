@@ -149,3 +149,32 @@ Every agent, upon completion, writes a structured "death report" (task, tools ca
 - Natural audit trail
 
 ---
+
+## D-008 — LLM provider: database-managed connections, per-execution instantiation
+
+**Status:** Accepted
+
+**Context**  
+The original LLM layer had two hardcoded provider classes (`ClaudeProvider`, `GPTProvider`) selected at startup via a `LLM_PROVIDER` environment variable, with API keys and model names read from `LoomEnv`. This model had three problems: (1) the user had no way to change the LLM provider without restarting the process and editing environment variables; (2) only one provider could be active at a time — different agents could not use different models; (3) adding a new provider required a code change.
+
+**Decision**  
+Replace the provider-per-env-var model with database-managed LLM connections and per-execution provider instantiation.
+
+- **`llm_connections` table** — stores named connections (`name`, `baseUrl`, `apiKey`, `model`, `isDefault`, `createdAt`). Any OpenAI Chat Completions-compatible endpoint can be registered. The user manages connections at runtime via `POST/GET/DELETE /llm/connections` and `PATCH /llm/connections/{id}/default`.
+- **`OpenAICompatibleProvider`** — a single implementation of `LLMGateway` that accepts `baseUrl`, `apiKey`, and `model` via constructor injection. No environment variables are read. Any registered connection can be used by constructing a provider from it.
+- **`LLMProviderFactory`** — now a thin startup check only: calls `repo.findDefault()`; if a default connection exists, returns `new OpenAICompatibleProvider(config)`; otherwise returns `MockLLMProvider` with a warning log. The factory is no longer the source of truth for which connection is active at runtime.
+- **Per-execution resolution in `AgentRuntime`** — at execution time, `resolveGateway(agent)` reads `agent.getLlmConnectionId()`: if non-null, calls `llmConnectionRepo.findById()`; if null, calls `findDefault()`. A fresh `OpenAICompatibleProvider` is constructed from the resolved connection and used for that execution only. If neither lookup finds a connection, the startup-wired gateway (Mock or the startup default) is used as the fallback.
+- **`AgentDefinition.llmConnectionId`** — a nullable foreign key. When set, the agent always uses that specific connection regardless of which connection is currently the default. When null, the default connection is used at execution time.
+
+**Consequences**  
+- LLM connections are managed at runtime with no process restart required.
+- Individual agents can be pinned to specific models/endpoints.
+- The `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `LLM_PROVIDER`, `OPENAI_MODEL`, and `ANTHROPIC_MODEL` env vars are removed from `LoomEnv`; the backend no longer reads credentials from the environment.
+- `ClaudeProvider.java` and `GPTProvider.java` are deleted; `OpenAICompatibleProvider` replaces both.
+- Known deferred issue: each execution creates a new `OkHttpClient` (thread pool + connection pool). Under sustained load this leaks threads. A shared client injected into `AgentRuntime` is planned for v2.
+
+**Alternatives considered**  
+- *Keep env-var model, add hot-reload* — could not support per-agent provider selection and still required process configuration changes.
+- *Abstract `ProviderFactory` with registered implementations* — adds indirection with no benefit; all supported providers today use the same OpenAI-compatible wire format.
+
+---

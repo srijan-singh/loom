@@ -25,8 +25,6 @@ package com.loom;
  * <pre>{@code
  * int  port    = LoomEnv.LOOM_PORT.getInt();
  * long timeout = LoomEnv.LOOM_NODE_TIMEOUT_SECONDS.getLong();
- * String key   = LoomEnv.OPENAI_API_KEY.get();          // null when unset
- * String model = LoomEnv.OPENAI_MODEL.getOrDefault(myDefault);
  * }</pre>
  */
 public enum LoomEnv {
@@ -49,32 +47,7 @@ public enum LoomEnv {
     LOOM_WORKER_THREADS("LOOM_WORKER_THREADS", "4"),
 
     /** Maximum supervisor iterations before a session is marked PARTIAL. Default: {@code 10}. */
-    LOOM_SUPERVISOR_MAX_ITER("LOOM_SUPERVISOR_MAX_ITER", "10"),
-
-    // ── LLM ───────────────────────────────────────────────────────────────────
-    /**
-     * Selects the LLM provider when both API keys are present. Accepted values: {@code "openai"},
-     * {@code "anthropic"} (default when absent).
-     */
-    LLM_PROVIDER("LLM_PROVIDER", null),
-
-    /** API key for OpenAI. Required when using {@link com.loom.llm.GPTProvider}. */
-    OPENAI_API_KEY("OPENAI_API_KEY", null),
-
-    /**
-     * OpenAI model identifier. No global default — {@link com.loom.llm.GPTProvider} supplies its
-     * own provider-specific fallback via {@link #getOrDefault(String)}.
-     */
-    OPENAI_MODEL("OPENAI_MODEL", null),
-
-    /** API key for Anthropic. Required when using {@link com.loom.llm.ClaudeProvider}. */
-    ANTHROPIC_API_KEY("ANTHROPIC_API_KEY", null),
-
-    /**
-     * Anthropic model identifier. No global default — {@link com.loom.llm.ClaudeProvider} supplies
-     * its own provider-specific fallback via {@link #getOrDefault(String)}.
-     */
-    ANTHROPIC_MODEL("ANTHROPIC_MODEL", null);
+    LOOM_SUPERVISOR_MAX_ITER("LOOM_SUPERVISOR_MAX_ITER", "10");
 
     // ── Implementation ────────────────────────────────────────────────────────
 

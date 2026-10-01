@@ -30,6 +30,7 @@ import com.loom.mcp.StubMCPClient;
 import com.loom.storage.DatabaseManager;
 import com.loom.storage.repository.AgentExecutionRepository;
 import com.loom.storage.repository.AgentRepository;
+import com.loom.storage.repository.LLMConnectionRepository;
 import com.loom.storage.repository.MCPConnectionRepository;
 import com.loom.storage.repository.SessionRepository;
 import com.loom.storage.repository.SkillRepository;
@@ -57,10 +58,11 @@ public class Main {
         SessionRepository sessionRepo = new SessionRepository(db);
         AgentExecutionRepository execRepo = new AgentExecutionRepository(db);
         WorkspaceKnowledgeRepository knowledgeRepo = new WorkspaceKnowledgeRepository(db);
+        LLMConnectionRepository llmConnectionRepo = new LLMConnectionRepository(db);
 
         // Engine
         SSEManager sseManager = new SSEManager();
-        LLMGateway llmGateway = LLMProviderFactory.create();
+        LLMGateway llmGateway = LLMProviderFactory.create(llmConnectionRepo);
         MCPClient mcpClient = new StubMCPClient();
 
         AgentRuntime agentRuntime =
@@ -73,7 +75,8 @@ public class Main {
                         execRepo,
                         sessionRepo,
                         workflowRepo,
-                        agentRepo);
+                        agentRepo,
+                        llmConnectionRepo);
 
         GraphResolver graphResolver = new GraphResolver();
         StateManager stateManager = new StateManager(execRepo);
@@ -105,7 +108,8 @@ public class Main {
                         execRepo,
                         workflowRepo,
                         workspaceRepo,
-                        graphResolver);
+                        graphResolver,
+                        llmConnectionRepo);
 
         localServer.start(port);
         // Announce both port and token on stdout so the Flutter shell can read them.

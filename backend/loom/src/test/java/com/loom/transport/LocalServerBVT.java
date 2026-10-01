@@ -74,6 +74,7 @@ class LocalServerBVT {
         SessionRepository sessionRepo = new SessionRepository(db);
         AgentExecutionRepository execRepo = new AgentExecutionRepository(db);
         WorkspaceKnowledgeRepository knowledgeRepo = new WorkspaceKnowledgeRepository(db);
+        LLMConnectionRepository llmConnectionRepo = new LLMConnectionRepository(db);
 
         sseManager = new SSEManager();
         MCPClient mcpClient = new StubMCPClient();
@@ -87,7 +88,8 @@ class LocalServerBVT {
                         execRepo,
                         sessionRepo,
                         workflowRepo,
-                        agentRepo);
+                        agentRepo,
+                        llmConnectionRepo);
 
         GraphResolver graphResolver = new GraphResolver();
         StateManager stateManager = new StateManager(execRepo);
@@ -116,7 +118,8 @@ class LocalServerBVT {
                         execRepo,
                         workflowRepo,
                         workspaceRepo,
-                        graphResolver);
+                        graphResolver,
+                        llmConnectionRepo);
         server.start(port);
     }
 

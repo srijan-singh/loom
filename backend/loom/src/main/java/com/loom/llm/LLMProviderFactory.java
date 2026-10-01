@@ -18,62 +18,38 @@ package com.loom.llm;
 
 import lombok.extern.slf4j.Slf4j;
 
-import com.loom.LoomEnv;
+import java.util.Optional;
+
+import com.loom.storage.repository.LLMConnectionRepository;
 
 /**
  * Selects the appropriate {@link LLMGateway} implementation at startup.
  *
- * <h3>Selection rules (evaluated in order)</h3>
- *
- * <ol>
- *   <li>Only {@code ANTHROPIC_API_KEY} is set → {@link ClaudeProvider}.
- *   <li>Only {@code OPENAI_API_KEY} is set → {@link GPTProvider}.
- *   <li>Both keys are set → read {@code LLM_PROVIDER} env var:
- *       <ul>
- *         <li>{@code "openai"} → {@link GPTProvider}
- *         <li>{@code "anthropic"} or absent → {@link ClaudeProvider} (Claude preferred)
- *       </ul>
- *   <li>Neither key is set → {@link MockLLMProvider}. This is intentionally only for local
- *       development; every {@code send()} call logs a WARNING so the absence of a real key is
- *       visible in production logs.
- * </ol>
+ * <p>Loads the default {@link LLMConnection} from the database. If one exists, an {@link
+ * OpenAICompatibleProvider} is returned configured with that connection's credentials. If no
+ * default connection is configured, {@link MockLLMProvider} is returned as a fallback suitable for
+ * local development only.
  */
 @Slf4j
 public class LLMProviderFactory {
 
     private LLMProviderFactory() {}
 
-    public static LLMGateway create() {
-        boolean hasAnthropic = LoomEnv.ANTHROPIC_API_KEY.isSet();
-        boolean hasOpenAI = LoomEnv.OPENAI_API_KEY.isSet();
-
-        if (hasAnthropic && hasOpenAI) {
-            String preference = LoomEnv.LLM_PROVIDER.get();
-            if ("openai".equalsIgnoreCase(preference)) {
-                log.info("LLM provider: GPTProvider (both keys set, LLM_PROVIDER=openai)");
-                return new GPTProvider();
-            }
+    public static LLMGateway create(LLMConnectionRepository repo) {
+        Optional<LLMConnection> defaultConn = repo.findDefault();
+        if (defaultConn.isPresent()) {
+            LLMConnection conn = defaultConn.get();
+            ProviderConfig config =
+                    new ProviderConfig(conn.getBaseUrl(), conn.getApiKey(), conn.getModel());
             log.info(
-                    "LLM provider: ClaudeProvider (both keys set, defaulting to Claude; set LLM_PROVIDER=openai to override)");
-            return new ClaudeProvider();
+                    "LLM provider: OpenAICompatibleProvider (default connection: {})",
+                    conn.getName());
+            return new OpenAICompatibleProvider(config);
         }
-
-        if (hasAnthropic) {
-            log.info("LLM provider: ClaudeProvider");
-            return new ClaudeProvider();
-        }
-
-        if (hasOpenAI) {
-            log.info("LLM provider: GPTProvider");
-            return new GPTProvider();
-        }
-
         log.warn(
-                "No LLM API key found ({} / {}). "
-                        + "Using MockLLMProvider — suitable for local development only. "
-                        + "Every request will produce a canned response.",
-                LoomEnv.ANTHROPIC_API_KEY.key(),
-                LoomEnv.OPENAI_API_KEY.key());
+                "No default LLM connection found in database. Using MockLLMProvider — "
+                        + "suitable for local development only. Configure a default connection via "
+                        + "POST /llm/connections and PATCH /llm/connections/{id}/default.");
         return new MockLLMProvider();
     }
 }

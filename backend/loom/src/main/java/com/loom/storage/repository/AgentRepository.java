@@ -32,6 +32,7 @@ public class AgentRepository extends BaseRepository<AgentDefinition> {
     private static final String COL_ALLOWED_MCP_IDS = "allowed_mcp_ids";
     private static final String COL_CREATED_AT = "created_at";
     private static final String COL_UPDATED_AT = "updated_at";
+    private static final String COL_LLM_CONNECTION_ID = "llm_connection_id";
 
     // queries
     private static final String TABLE = "agent_definitions";
@@ -48,7 +49,8 @@ public class AgentRepository extends BaseRepository<AgentDefinition> {
                     COL_SKILL_ID,
                     COL_ALLOWED_MCP_IDS,
                     COL_CREATED_AT,
-                    COL_UPDATED_AT);
+                    COL_UPDATED_AT,
+                    COL_LLM_CONNECTION_ID);
 
     public AgentRepository(DatabaseManager db) {
         super(db, TABLE);
@@ -66,6 +68,7 @@ public class AgentRepository extends BaseRepository<AgentDefinition> {
                             ps.setString(5, toJsonList(agent.getAllowedMcpIds()));
                             ps.setLong(6, agent.getCreatedAt());
                             ps.setLong(7, agent.getUpdatedAt());
+                            ps.setString(8, agent.getLlmConnectionId());
                         });
     }
 
@@ -82,6 +85,7 @@ public class AgentRepository extends BaseRepository<AgentDefinition> {
         a.setAllowedMcpIds(fromJsonList(rs.getString(COL_ALLOWED_MCP_IDS)));
         a.setCreatedAt(rs.getLong(COL_CREATED_AT));
         a.setUpdatedAt(rs.getLong(COL_UPDATED_AT));
+        a.setLlmConnectionId(rs.getString(COL_LLM_CONNECTION_ID));
         return a;
     }
 }

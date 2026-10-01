@@ -40,7 +40,7 @@ The Java server binds exclusively to the loopback interface (`127.0.0.1`). The l
          │ outbound only                │ outbound only
          ▼                              ▼
    LLM Providers                  MCP Servers
-   (Claude/GPT)                (GitHub/Figma/etc)
+   (OpenAI-compatible)         (GitHub/Figma/etc)
 ```
 
 Both external connections (LLM providers and MCP servers) are **outbound only**. No inbound network access is required; no user data is sent to Loom's servers because there are none.
@@ -118,7 +118,9 @@ com.loom
  │         ├── SkillRoutes.java
  │         ├── MCPRoutes.java
  │         ├── SessionRoutes.java
- │         └── WorkspaceRoutes.java
+ │         ├── WorkspaceRoutes.java
+ │         └── LLMRoutes.java     → CRUD + test endpoint for LLM connections;
+ │                                  GET responses mask apiKey (first 3 chars + "****")
  │
  ├── engine
  │    ├── WorkflowEngine.java     → Entry point: loads session/workflow, resolves plan,
@@ -152,7 +154,9 @@ com.loom
  │    │
  │    └── agent/                  → Agent-level: LLM loop, context assembly, reporting
  │         ├── AgentRuntime.java       → Executes one workflow node: loads skill, fetches
- │         │                             knowledge, calls LLM, handles tool loop,
+ │         │                             knowledge, resolves per-execution LLM provider
+ │         │                             (findById → findDefault → startup fallback),
+ │         │                             calls LLM, handles tool loop,
  │         │                             persists execution record, writes report
  │         ├── AgentRunner.java        → Standalone single-agent LLM loop (no workflow
  │         │                             context); used for direct agent invocations
@@ -161,11 +165,20 @@ com.loom
  │         └── ReportWriter.java       → Persists agent output as WorkspaceKnowledge record
  │
  ├── llm
- │    ├── LLMGateway.java         → Interface
- │    ├── LLMRequest.java         → Shared request model
- │    ├── LLMResponse.java        → Shared response model
- │    ├── ClaudeProvider.java     → Claude implementation
- │    └── GPTProvider.java        → GPT implementation
+ │    ├── LLMGateway.java              → Interface
+ │    ├── LLMRequest.java              → Shared request model
+ │    ├── LLMResponse.java             → Shared response model
+ │    ├── LLMConnection.java           → Persisted connection record (name, baseUrl, model,
+ │    │                                  apiKey, isDefault, createdAt)
+ │    ├── ProviderConfig.java          → Immutable value object (baseUrl, apiKey, model);
+ │    │                                  resolved at execution time from LLMConnection
+ │    ├── OpenAICompatibleProvider.java → LLMGateway implementation; constructor-injected
+ │    │                                  ProviderConfig; supports any OpenAI Chat
+ │    │                                  Completions-compatible endpoint
+ │    ├── LLMProviderFactory.java      → Startup check: loads default LLMConnection from
+ │    │                                  DB → OpenAICompatibleProvider; fallback →
+ │    │                                  MockLLMProvider
+ │    └── MockLLMProvider.java         → No-op provider for local dev / no connection
  │
  ├── mcp
  │    ├── MCPClient.java          → Interface
@@ -184,7 +197,7 @@ com.loom
  ├── domain
  │    ├── Skill.java
  │    ├── MCPConnection.java
- │    ├── AgentDefinition.java
+ │    ├── AgentDefinition.java         → now carries nullable llmConnectionId
  │    ├── WorkflowDefinition.java
  │    ├── WorkflowNode.java
  │    ├── WorkflowEdge.java
@@ -195,11 +208,14 @@ com.loom
  ├── storage
  │    ├── DatabaseManager.java    → SQLite connection, migrations
  │    └── repository
+ │         ├── BaseRepository.java
  │         ├── SkillRepository.java
  │         ├── AgentRepository.java
  │         ├── WorkflowRepository.java
  │         ├── SessionRepository.java
- │         └── WorkspaceRepository.java
+ │         ├── WorkspaceRepository.java
+ │         └── LLMConnectionRepository.java → CRUD + findDefault + setDefault (atomic
+ │                                            CASE-WHEN UPDATE) for llm_connections table
  │
  └── events
       ├── WorkflowEvent.java      → Event model
@@ -412,12 +428,22 @@ mcp_connections
   status      TEXT    -- CONNECTED | DISCONNECTED
   created_at  INTEGER
 
+llm_connections
+  id          TEXT PRIMARY KEY
+  name        TEXT NOT NULL
+  base_url    TEXT NOT NULL
+  model       TEXT NOT NULL
+  api_key     TEXT NOT NULL
+  is_default  INTEGER NOT NULL DEFAULT 0
+  created_at  INTEGER NOT NULL
+
 agent_definitions
   id                TEXT PRIMARY KEY
   name              TEXT
   role_description  TEXT
   skill_id          TEXT    -- FK → skills
   allowed_mcp_ids   TEXT    -- JSON array of mcp_connection ids
+  llm_connection_id TEXT    -- FK → llm_connections(id), nullable; null = use default
   created_at        INTEGER
   updated_at        INTEGER
 

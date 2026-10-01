@@ -143,3 +143,10 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+# Copy loom-engine.jar next to the executable so _resolveJarPath() can find it.
+set(LOOM_ENGINE_JAR "${CMAKE_CURRENT_SOURCE_DIR}/../macos/Runner/Resources/loom-engine.jar")
+if(EXISTS "${LOOM_ENGINE_JAR}")
+  install(FILES "${LOOM_ENGINE_JAR}" DESTINATION "${CMAKE_INSTALL_PREFIX}"
+    COMPONENT Runtime)
+endif()

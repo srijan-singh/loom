@@ -137,6 +137,10 @@ public class LocalServer {
                                                 }
                                                 sseManager.attach(client);
                                             });
+                                    config.routes.get(
+                                            "/health",
+                                            ctx -> ctx.json(
+                                                    java.util.Map.of("status", "ok")));
                                     agentRoutes.register(config.routes);
                                     workflowRoutes.register(config.routes);
                                     skillRoutes.register(config.routes);

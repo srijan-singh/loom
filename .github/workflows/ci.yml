@@ -5,11 +5,13 @@ on:
     branches: ["main"]
     paths:
       - "backend/loom/**"
+      - "frontend/**"
       - ".github/workflows/ci.yml"
   pull_request:
     branches: ["main"]
     paths:
       - "backend/loom/**"
+      - "frontend/**"
       - ".github/workflows/ci.yml"
 
 defaults:
@@ -62,6 +64,33 @@ jobs:
           name: loom-engine-staging
           path: backend/loom/build/libs/loom-engine.jar
           retention-days: 1   # only needs to survive until the package job
+
+  flutter-test:
+    name: Flutter Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Analyse
+        working-directory: frontend
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        working-directory: frontend
+        run: flutter test --reporter expanded
 
   package:
     name: Package shadow JAR

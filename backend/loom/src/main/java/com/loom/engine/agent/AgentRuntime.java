@@ -501,7 +501,7 @@ public class AgentRuntime {
         String connId = agent.getLlmConnectionId();
         Optional<LLMConnection> conn =
                 connId != null
-                        ? llmConnectionRepo.findById(connId)
+                        ? llmConnectionRepo.findById(connId).or(llmConnectionRepo::findDefault)
                         : llmConnectionRepo.findDefault();
 
         return conn.map(

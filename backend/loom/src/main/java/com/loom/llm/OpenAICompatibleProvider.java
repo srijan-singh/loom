@@ -27,12 +27,14 @@ import okhttp3.ResponseBody;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -106,6 +108,17 @@ public class OpenAICompatibleProvider implements LLMGateway {
         this.mapper = mapper;
     }
 
+    private static final Set<String> LOCAL_HOSTS = Set.of("localhost", "127.0.0.1", "[::1]", "::1");
+
+    private static boolean isLocalEndpoint(String url) {
+        try {
+            String host = URI.create(url).getHost();
+            return host != null && LOCAL_HOSTS.contains(host.toLowerCase());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     @Override
     public void send(LLMRequest request, Consumer<LLMResponse> tokenConsumer) {
         if (Thread.currentThread().isInterrupted()) {
@@ -113,6 +126,15 @@ public class OpenAICompatibleProvider implements LLMGateway {
         }
         if (apiKey == null || apiKey.isBlank()) {
             tokenConsumer.accept(LLMResponse.error("API key is not set"));
+            return;
+        }
+        if (baseUrl != null
+                && baseUrl.toLowerCase().startsWith("http://")
+                && !isLocalEndpoint(baseUrl)) {
+            tokenConsumer.accept(
+                    LLMResponse.error(
+                            "Cleartext HTTP is not allowed for non-local endpoints when an API key"
+                                    + " is configured; use HTTPS"));
             return;
         }
 

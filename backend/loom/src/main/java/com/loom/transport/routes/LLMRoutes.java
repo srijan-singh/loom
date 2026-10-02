@@ -93,6 +93,7 @@ public class LLMRoutes {
                     llmConnectionRepo.save(created);
                     if (body.isDefault()) {
                         llmConnectionRepo.setDefault(created.getId());
+                        created.setDefault(true);
                     }
                     ctx.status(201).json(LLMConnectionView.of(created));
                 });
@@ -186,11 +187,12 @@ public class LLMRoutes {
                                         .build();
                         try (Response probeResponse = httpClient.newCall(probeRequest).execute()) {
                             int code = probeResponse.code();
-                            // 200/404/405/501 → endpoint is reachable
-                            if (code == 200 || code == 404 || code == 405 || code == 501) {
+                            // Only a 200 means the /models endpoint confirmed reachability
+                            if (code == 200) {
                                 ctx.json(Map.of("ok", true));
                                 return;
                             }
+                            // 404/405/501 and other non-success: fall through to completion probe
                         }
                     } catch (Exception e) {
                         ctx.json(

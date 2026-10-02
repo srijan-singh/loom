@@ -82,6 +82,16 @@ public class OpenAICompatibleProvider implements LLMGateway {
                 new ObjectMapper());
     }
 
+    /** Production: built from a {@link ProviderConfig} with a shared {@link OkHttpClient}. */
+    public OpenAICompatibleProvider(ProviderConfig config, OkHttpClient httpClient) {
+        this(
+                config.getBaseUrl(),
+                config.getApiKey(),
+                config.getModel(),
+                httpClient,
+                new ObjectMapper());
+    }
+
     /** Package-private: for testing with a mock HTTP client. */
     OpenAICompatibleProvider(
             String baseUrl,

@@ -257,8 +257,7 @@ class AgentRuntimeToolContinuationTest {
         try {
             // Enqueue one SSE response that the resolved provider will consume
             String sseBody =
-                    "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n"
-                            + "data: [DONE]\n";
+                    "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n" + "data: [DONE]\n";
             mockLlmServer.enqueue(
                     new MockResponse()
                             .setResponseCode(200)
@@ -311,7 +310,8 @@ class AgentRuntimeToolContinuationTest {
             // Act
             runtime.executeNode("sess-specific", node, "ping");
 
-            // Assert: the startup-wired mock gateway was NOT called — the resolved provider was used
+            // Assert: the startup-wired mock gateway was NOT called — the resolved provider was
+            // used
             verify(llmGateway, never()).send(any(LLMRequest.class), any());
 
             // The MockWebServer received exactly one request (from the resolved provider)

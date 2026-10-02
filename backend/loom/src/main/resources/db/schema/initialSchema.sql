@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS agent_definitions (
     allowed_mcp_ids     TEXT,
     created_at          INTEGER NOT NULL,
     updated_at          INTEGER NOT NULL,
-    llm_connection_id   TEXT    REFERENCES llm_connections(id),
+    llm_connection_id   TEXT    REFERENCES llm_connections(id) ON DELETE SET NULL,
     FOREIGN KEY (skill_id) REFERENCES skills(id)
 );
 

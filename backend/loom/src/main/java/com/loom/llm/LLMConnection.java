@@ -16,11 +16,12 @@
  */
 package com.loom.llm;
 
+import lombok.Data;
+
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.Data;
 
 @Data
 public class LLMConnection {
@@ -29,12 +30,14 @@ public class LLMConnection {
     private String baseUrl;
     private String model;
     private String apiKey;
+
     // Serialise as "isDefault" (canonical). Also accept the legacy "default" field name
     // that some callers send, since Lombok's isDefault() getter caused Jackson to strip the
     // "is" prefix and serialise as "default" before this annotation was added.
     @JsonProperty("isDefault")
     @JsonAlias("default")
     private boolean isDefault;
+
     private long createdAt;
 
     public LLMConnection() {

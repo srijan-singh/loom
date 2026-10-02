@@ -17,7 +17,9 @@
 package com.loom.engine.agent;
 
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.OkHttpClient;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -84,6 +86,11 @@ public class AgentRuntime {
     private final ContextBuilder contextBuilder;
     private final ReportWriter reportWriter;
     private final ObjectMapper mapper = new ObjectMapper();
+    private final OkHttpClient sharedHttpClient =
+            new OkHttpClient.Builder()
+                    .readTimeout(Duration.ZERO)
+                    .callTimeout(Duration.ofMinutes(10))
+                    .build();
 
     /**
      * Constructs an AgentRuntime with all required collaborators.
@@ -504,7 +511,8 @@ public class AgentRuntime {
                                                 new ProviderConfig(
                                                         c.getBaseUrl(),
                                                         c.getApiKey(),
-                                                        c.getModel())))
+                                                        c.getModel()),
+                                                sharedHttpClient))
                 .orElse(llmGateway);
     }
 

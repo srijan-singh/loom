@@ -159,6 +159,25 @@ public class DatabaseManager {
 
             log.info("Database schema initialized successfully");
 
+            // Idempotent upgrade: add llm_connection_id to agent_definitions if absent.
+            // Needed for databases created before this column was introduced.
+            boolean hasLlmConnectionId = false;
+            try (ResultSet rs = stmt.executeQuery("PRAGMA table_info(agent_definitions)")) {
+                while (rs.next()) {
+                    if ("llm_connection_id".equals(rs.getString("name"))) {
+                        hasLlmConnectionId = true;
+                        break;
+                    }
+                }
+            }
+            if (!hasLlmConnectionId) {
+                stmt.executeUpdate(
+                        "ALTER TABLE agent_definitions"
+                                + " ADD COLUMN llm_connection_id TEXT"
+                                + " REFERENCES llm_connections(id) ON DELETE SET NULL");
+                log.info("Migration applied: added agent_definitions.llm_connection_id");
+            }
+
         } catch (SQLException e) {
             log.error("Failed to initialize database schema", e);
             throw new RuntimeException("Database initialization failed", e);

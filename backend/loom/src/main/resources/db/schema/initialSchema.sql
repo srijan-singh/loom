@@ -19,15 +19,27 @@ CREATE TABLE IF NOT EXISTS mcp_connections (
     created_at INTEGER NOT NULL
 );
 
+-- LLM Connections table
+CREATE TABLE IF NOT EXISTS llm_connections (
+    id          TEXT    PRIMARY KEY,
+    name        TEXT    NOT NULL,
+    base_url    TEXT    NOT NULL,
+    model       TEXT    NOT NULL,
+    api_key     TEXT    NOT NULL,
+    is_default  INTEGER NOT NULL DEFAULT 0,
+    created_at  INTEGER NOT NULL
+);
+
 -- Agent Definitions table
 CREATE TABLE IF NOT EXISTS agent_definitions (
-    id               TEXT    PRIMARY KEY,
-    name             TEXT    NOT NULL,
-    role_description TEXT,
-    skill_id         TEXT,
-    allowed_mcp_ids  TEXT,
-    created_at       INTEGER NOT NULL,
-    updated_at       INTEGER NOT NULL,
+    id                  TEXT    PRIMARY KEY,
+    name                TEXT    NOT NULL,
+    role_description    TEXT,
+    skill_id            TEXT,
+    allowed_mcp_ids     TEXT,
+    created_at          INTEGER NOT NULL,
+    updated_at          INTEGER NOT NULL,
+    llm_connection_id   TEXT    REFERENCES llm_connections(id) ON DELETE SET NULL,
     FOREIGN KEY (skill_id) REFERENCES skills(id)
 );
 

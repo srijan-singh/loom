@@ -32,6 +32,27 @@ One sentence. The thing to remember next time.
 
 <!-- Add new entries below, newest first -->
 
+## LL-004 — Per-provider implementations are an anti-pattern; use the unified OpenAI-compatible API
+
+**Date:** 2026-10-14
+**Area:** Architecture
+**Related:** D-008, [`OpenAICompatibleProvider`](backend/loom/src/main/java/com/loom/llm/OpenAICompatibleProvider.java)
+
+**What happened**
+The original LLM layer had two separate implementation classes — `ClaudeProvider` and `GPTProvider` — each hardcoding the provider's base URL, reading its own env vars (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`), and containing provider-specific parsing logic. Adding a third provider (e.g. a local model via Ollama) would have required a new class, a new env var, a new `LLM_PROVIDER` enum value, and a new factory branch. The pattern also prevented per-agent model selection and required a process restart to switch providers.
+
+**Why it happened**
+The initial implementation targeted two specific providers. The divergence between them felt like it justified separate classes, and there was no immediate need to support more than one provider simultaneously. The env-var-per-provider model was the path of least resistance.
+
+**What changed**
+Both classes were deleted. [`OpenAICompatibleProvider`](backend/loom/src/main/java/com/loom/llm/OpenAICompatibleProvider.java) replaces them: a single `LLMGateway` implementation that accepts `baseUrl`, `apiKey`, and `model` via constructor injection and works with any endpoint that speaks the OpenAI Chat Completions API — which includes OpenAI, Anthropic (via compatibility layer), Ollama, llama.cpp, LM Studio, and most hosted providers. Provider selection became a data concern (a row in `llm_connections`) rather than a code concern.
+
+**Takeaway**
+Before writing a new provider class, check whether the target endpoint exposes an OpenAI-compatible API — if it does, adding a new `LLMConnection` row is sufficient and no code change is needed.
+
+---
+
+
 ## LL-003 — WorkflowEngine grew beyond a single responsibility
 
 **Date:** 2026-09-26

@@ -27,12 +27,14 @@ import okhttp3.ResponseBody;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -40,18 +42,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.loom.LoomEnv;
 import com.loom.mcp.MCPToolDefinition;
 
 /**
- * Streams responses from OpenAI's Chat Completions API ({@code /v1/chat/completions}).
+ * Constructor-injected, OpenAI Chat Completions-compatible {@link LLMGateway} implementation.
  *
- * <p>Configuration via environment variables:
- *
- * <ul>
- *   <li>{@code OPENAI_API_KEY} (required)
- *   <li>{@code OPENAI_MODEL} (optional, default {@code gpt-4o})
- * </ul>
+ * <p>Accepts any OpenAI-compatible endpoint via {@link ProviderConfig}. All connection parameters
+ * ({@code baseUrl}, {@code apiKey}, {@code model}) are supplied at construction time — no
+ * environment variables are read.
  *
  * <p>SSE event mapping:
  *
@@ -63,20 +61,22 @@ import com.loom.mcp.MCPToolDefinition;
  * </ul>
  */
 @Slf4j
-public class GPTProvider implements LLMGateway {
-
-    private static final String API_URL = "https://api.openai.com/v1/chat/completions";
-    private static final String DEFAULT_MODEL = "gpt-4o";
+public class OpenAICompatibleProvider implements LLMGateway {
 
     private static final MediaType JSON_MEDIA = MediaType.get("application/json; charset=utf-8");
 
-    private final OkHttpClient httpClient;
-    private final ObjectMapper mapper;
+    private final String baseUrl;
     private final String apiKey;
     private final String model;
+    private final OkHttpClient httpClient;
+    private final ObjectMapper mapper;
 
-    public GPTProvider() {
+    /** Production: built from a {@link ProviderConfig}. */
+    public OpenAICompatibleProvider(ProviderConfig config) {
         this(
+                config.getBaseUrl(),
+                config.getApiKey(),
+                config.getModel(),
                 new OkHttpClient.Builder()
                         .readTimeout(Duration.ZERO) // streaming — no read deadline
                         .callTimeout(Duration.ofMinutes(10)) // hard ceiling per request
@@ -84,12 +84,39 @@ public class GPTProvider implements LLMGateway {
                 new ObjectMapper());
     }
 
-    /** Package-private for testing with a mock HTTP client. */
-    GPTProvider(OkHttpClient httpClient, ObjectMapper mapper) {
+    /** Production: built from a {@link ProviderConfig} with a shared {@link OkHttpClient}. */
+    public OpenAICompatibleProvider(ProviderConfig config, OkHttpClient httpClient) {
+        this(
+                config.getBaseUrl(),
+                config.getApiKey(),
+                config.getModel(),
+                httpClient,
+                new ObjectMapper());
+    }
+
+    /** Package-private: for testing with a mock HTTP client. */
+    OpenAICompatibleProvider(
+            String baseUrl,
+            String apiKey,
+            String model,
+            OkHttpClient httpClient,
+            ObjectMapper mapper) {
+        this.baseUrl = baseUrl;
+        this.apiKey = apiKey;
+        this.model = model;
         this.httpClient = httpClient;
         this.mapper = mapper;
-        this.apiKey = LoomEnv.OPENAI_API_KEY.get();
-        this.model = LoomEnv.OPENAI_MODEL.getOrDefault(DEFAULT_MODEL);
+    }
+
+    private static final Set<String> LOCAL_HOSTS = Set.of("localhost", "127.0.0.1", "[::1]", "::1");
+
+    private static boolean isLocalEndpoint(String url) {
+        try {
+            String host = URI.create(url).getHost();
+            return host != null && LOCAL_HOSTS.contains(host.toLowerCase());
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Override
@@ -98,7 +125,16 @@ public class GPTProvider implements LLMGateway {
             return;
         }
         if (apiKey == null || apiKey.isBlank()) {
-            tokenConsumer.accept(LLMResponse.error("OPENAI_API_KEY is not set"));
+            tokenConsumer.accept(LLMResponse.error("API key is not set"));
+            return;
+        }
+        if (baseUrl != null
+                && baseUrl.toLowerCase().startsWith("http://")
+                && !isLocalEndpoint(baseUrl)) {
+            tokenConsumer.accept(
+                    LLMResponse.error(
+                            "Cleartext HTTP is not allowed for non-local endpoints when an API key"
+                                    + " is configured; use HTTPS"));
             return;
         }
 
@@ -112,7 +148,7 @@ public class GPTProvider implements LLMGateway {
 
         Request httpRequest =
                 new Request.Builder()
-                        .url(API_URL)
+                        .url(baseUrl + "/chat/completions")
                         .addHeader("Authorization", "Bearer " + apiKey)
                         .addHeader("content-type", "application/json")
                         .post(RequestBody.create(body, JSON_MEDIA))
@@ -124,14 +160,14 @@ public class GPTProvider implements LLMGateway {
         try (Response response = call.execute()) {
             if (!response.isSuccessful()) {
                 String errBody = response.body() != null ? response.body().string() : "(empty)";
-                log.warn("OpenAI HTTP error {}: {}", response.code(), sanitize(errBody));
-                tokenConsumer.accept(LLMResponse.error("OpenAI HTTP " + response.code()));
+                log.warn("LLM HTTP error {}: {}", response.code(), sanitize(errBody));
+                tokenConsumer.accept(LLMResponse.error("LLM HTTP " + response.code()));
                 return;
             }
 
             ResponseBody responseBody = response.body();
             if (responseBody == null) {
-                tokenConsumer.accept(LLMResponse.error("Empty response body from OpenAI"));
+                tokenConsumer.accept(LLMResponse.error("Empty response body from LLM"));
                 return;
             }
 
@@ -142,7 +178,7 @@ public class GPTProvider implements LLMGateway {
                 Thread.currentThread().interrupt();
                 return;
             }
-            log.error("OpenAI streaming error", e);
+            log.error("LLM streaming error", e);
             tokenConsumer.accept(LLMResponse.error("Streaming error: " + e.getMessage()));
         }
     }
@@ -151,7 +187,7 @@ public class GPTProvider implements LLMGateway {
 
     private String buildRequestBody(LLMRequest request) throws Exception {
         ObjectNode root = mapper.createObjectNode();
-        root.put("model", request.getModel() != null ? request.getModel() : model);
+        root.put("model", request.getModel() != null ? request.getModel() : this.model);
         root.put("max_tokens", request.getMaxTokens());
         root.put("stream", true);
 
@@ -221,7 +257,7 @@ public class GPTProvider implements LLMGateway {
                 if ("[DONE]".equals(data)) {
                     flushToolCalls(toolCalls, consumer);
                     consumer.accept(LLMResponse.done());
-                    return;
+                    return; // explicit [DONE] — do not fall through to post-loop emit
                 }
 
                 JsonNode chunk;
@@ -234,8 +270,8 @@ public class GPTProvider implements LLMGateway {
 
                 // Top-level error object (returned by some OpenAI error codes in stream)
                 if (chunk.has("error")) {
-                    String msg = chunk.path("error").path("message").asText("Unknown OpenAI error");
-                    log.warn("OpenAI SSE error: {}", msg);
+                    String msg = chunk.path("error").path("message").asText("Unknown LLM error");
+                    log.warn("LLM SSE error: {}", msg);
                     consumer.accept(LLMResponse.error(msg));
                     return;
                 }
@@ -267,7 +303,9 @@ public class GPTProvider implements LLMGateway {
                     }
                 }
 
-                // finish_reason signals the tool call list is complete
+                // finish_reason signals the tool call list is complete for this batch.
+                // Flush + clear so a subsequent batch (non-standard but observed in local
+                // models) starts fresh rather than re-emitting already-flushed tool calls.
                 String finishReason = choice.path("finish_reason").asText("");
                 if ("tool_calls".equals(finishReason)) {
                     flushToolCalls(toolCalls, consumer);
@@ -275,7 +313,10 @@ public class GPTProvider implements LLMGateway {
                 }
             }
         }
-        // Stream ended without [DONE] sentinel — flush any pending tool calls then emit DONE
+        // Stream ended without explicit [DONE] sentinel (some local/custom providers omit it).
+        // Flush any tool calls accumulated since the last finish_reason chunk and emit DONE once.
+        // This path is only reached when the loop exits by exhausting the stream — the [DONE]
+        // branch above returns early, so DONE is never emitted twice.
         flushToolCalls(toolCalls, consumer);
         consumer.accept(LLMResponse.done());
     }

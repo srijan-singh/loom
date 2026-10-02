@@ -93,6 +93,7 @@ class RoutesBVT {
         sessionRepo = new SessionRepository(db);
         execRepo = new AgentExecutionRepository(db);
         knowledgeRepo = new WorkspaceKnowledgeRepository(db);
+        LLMConnectionRepository llmConnectionRepo = new LLMConnectionRepository(db);
 
         sseManager = new SSEManager();
         MCPClient mcpClient = new StubMCPClient();
@@ -106,7 +107,8 @@ class RoutesBVT {
                         execRepo,
                         sessionRepo,
                         workflowRepo,
-                        agentRepo);
+                        agentRepo,
+                        llmConnectionRepo);
 
         GraphResolver graphResolver = new GraphResolver();
         StateManager stateManager = new StateManager(execRepo);
@@ -135,7 +137,8 @@ class RoutesBVT {
                         execRepo,
                         workflowRepo,
                         workspaceRepo,
-                        graphResolver);
+                        graphResolver,
+                        llmConnectionRepo);
         server.start(port);
 
         http = HttpClient.newHttpClient();
@@ -427,5 +430,16 @@ class RoutesBVT {
                 post("/sessions", "{\"workflowDefinitionId\":\"wf-research-pipeline\"}");
         assertEquals(400, res.statusCode());
         assertEquals("workspaceId is required", MAPPER.readTree(res.body()).path("error").asText());
+    }
+
+    // ── 5. LLM connections route (smoke) ───────────────────────────────────────
+
+    @Test
+    @Order(11)
+    @DisplayName("GET /llm/connections returns 200 (endpoint is registered and reachable)")
+    void llmConnectionsEndpointRegistered() throws Exception {
+        HttpResponse<String> res = get("/llm/connections");
+        assertEquals(200, res.statusCode());
+        assertTrue(MAPPER.readTree(res.body()).isArray(), "Response must be a JSON array");
     }
 }

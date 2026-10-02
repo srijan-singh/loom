@@ -114,6 +114,7 @@ class WorkflowRoutesBVT {
         sessionRepo = new SessionRepository(db);
         execRepo = new AgentExecutionRepository(db);
         WorkspaceKnowledgeRepository knowledgeRepo = new WorkspaceKnowledgeRepository(db);
+        LLMConnectionRepository llmConnectionRepo = new LLMConnectionRepository(db);
 
         SSEManager sseManager = new SSEManager();
         MCPClient mcpClient = new StubMCPClient();
@@ -127,7 +128,8 @@ class WorkflowRoutesBVT {
                         execRepo,
                         sessionRepo,
                         workflowRepo,
-                        agentRepo);
+                        agentRepo,
+                        llmConnectionRepo);
 
         GraphResolver graphResolver = new GraphResolver();
         StateManager stateManager = new StateManager(execRepo);
@@ -156,7 +158,8 @@ class WorkflowRoutesBVT {
                         execRepo,
                         workflowRepo,
                         workspaceRepo,
-                        graphResolver);
+                        graphResolver,
+                        llmConnectionRepo);
         server.start(port);
 
         http = HttpClient.newHttpClient();

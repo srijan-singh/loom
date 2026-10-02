@@ -14,26 +14,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.loom.domain;
+package com.loom.llm;
 
 import lombok.Data;
 
-import java.util.List;
 import java.util.UUID;
 
-@Data
-public class AgentDefinition {
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
+@Data
+public class LLMConnection {
     private String id;
     private String name;
-    private String roleDescription;
-    private String skillId;
-    private List<String> allowedMcpIds;
-    private long createdAt;
-    private long updatedAt;
-    private String llmConnectionId; // nullable — null means use default connection
+    private String baseUrl;
+    private String model;
+    private String apiKey;
 
-    public AgentDefinition() {
+    // Serialise as "isDefault" (canonical). Also accept the legacy "default" field name
+    // that some callers send, since Lombok's isDefault() getter caused Jackson to strip the
+    // "is" prefix and serialise as "default" before this annotation was added.
+    @JsonProperty("isDefault")
+    @JsonAlias("default")
+    private boolean isDefault;
+
+    private long createdAt;
+
+    public LLMConnection() {
         this.id = UUID.randomUUID().toString();
     }
 }

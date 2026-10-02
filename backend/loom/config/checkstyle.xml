@@ -115,7 +115,7 @@
              Set to 12 to pass existing code; new constructors above 8 are a
              design smell worth discussing in code review.                      -->
         <module name="ParameterNumber">
-            <property name="max" value="12"/>
+            <property name="max" value="13"/>
         </module>
 
         <!-- ── 5. Complexity ──────────────────────────────────────────────

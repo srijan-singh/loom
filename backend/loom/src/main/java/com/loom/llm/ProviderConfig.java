@@ -14,26 +14,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.loom.domain;
+package com.loom.llm;
 
-import lombok.Data;
+public final class ProviderConfig {
 
-import java.util.List;
-import java.util.UUID;
+    private final String baseUrl;
+    private final String apiKey;
+    private final String model;
 
-@Data
-public class AgentDefinition {
+    public ProviderConfig(String baseUrl, String apiKey, String model) {
+        this.baseUrl = baseUrl;
+        this.apiKey = apiKey;
+        this.model = model;
+    }
 
-    private String id;
-    private String name;
-    private String roleDescription;
-    private String skillId;
-    private List<String> allowedMcpIds;
-    private long createdAt;
-    private long updatedAt;
-    private String llmConnectionId; // nullable — null means use default connection
+    public String getBaseUrl() {
+        return baseUrl;
+    }
 
-    public AgentDefinition() {
-        this.id = UUID.randomUUID().toString();
+    public String getApiKey() {
+        return apiKey;
+    }
+
+    public String getModel() {
+        return model;
     }
 }

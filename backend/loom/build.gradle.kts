@@ -129,8 +129,35 @@ tasks.named("check") {
 }
 
 tasks.test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags("integration")
+    }
     jvmArgs("-Dnet.bytebuddy.experimental=true")
+}
+
+val integrationTest by tasks.registering(Test::class) {
+    description = "Runs integration tests against a live loom-engine.jar + Ollama instance."
+    group = "verification"
+
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+
+    useJUnitPlatform {
+        includeTags("integration")
+    }
+
+    // Pass through env vars set by CI (or locally) as JVM system properties
+    // so SLMIntegrationBVT can read them via System.getProperty(...)
+    val baseUrl = System.getenv("LOOM_INTEGRATION_BASE_URL") ?: ""
+    val token   = System.getenv("LOOM_INTEGRATION_TOKEN")    ?: ""
+    systemProperty("loom.integration.baseUrl", baseUrl)
+    systemProperty("loom.integration.token",   token)
+
+    jvmArgs("-Dnet.bytebuddy.experimental=true")
+
+    // Do NOT attach to the check lifecycle.
+    // integrationTest is invoked explicitly by the CI integration job only.
+    shouldRunAfter(tasks.test)
 }
 
 tasks.shadowJar {

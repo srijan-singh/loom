@@ -165,8 +165,10 @@ class SLMIntegrationBVT {
     @Order(5)
     @DisplayName("GET /events with valid token → 200, Content-Type is text/event-stream")
     void sseEndpointRespondsWithEventStream() throws Exception {
-        // Use InputStream handler so we receive the response headers immediately without
-        // waiting for the SSE stream to close (it never does while the server is running).
+        // Use InputStream so send() returns as soon as the response headers arrive,
+        // without waiting for the SSE stream to close (it never does).
+        // Assert status and headers first, then close — closing before reading headers
+        // can abort the connection before HttpClient buffers the response metadata.
         HttpResponse<InputStream> resp =
                 http.send(
                         HttpRequest.newBuilder()
@@ -176,11 +178,11 @@ class SLMIntegrationBVT {
                                 .build(),
                         HttpResponse.BodyHandlers.ofInputStream());
 
-        resp.body().close(); // we only need the headers; discard the stream immediately
-
-        assertEquals(200, resp.statusCode());
-
+        int status = resp.statusCode();
         String contentType = resp.headers().firstValue("Content-Type").orElse("");
+        resp.body().close(); // discard stream only after headers are captured
+
+        assertEquals(200, status);
         assertTrue(
                 contentType.contains("text/event-stream"),
                 "Content-Type must be text/event-stream, got: " + contentType);

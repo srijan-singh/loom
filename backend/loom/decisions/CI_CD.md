@@ -17,12 +17,11 @@ The backend module is a Gradle project under `backend/loom/`. It needs automated
 Use a GitHub Actions workflow with five sequenced jobs:
 
 ```
-build-and-test ──→ integration ──→ flutter-boot
-               ──→ flutter-unit   (parallel with integration)
-               ──→ package        (parallel with integration)
+build-and-test ──→ integration  ──→ flutter-boot ──→ package
+               ──→ flutter-unit ──────────────────────────↗
 ```
 
-Every downstream job runs only when `build-and-test` passes. `flutter-boot` additionally requires `integration` to pass — Flutter never boots the JAR against an SLM that has not been validated.
+Every downstream job runs only when `build-and-test` passes. `flutter-boot` additionally requires `integration` to pass — Flutter never boots the JAR against an SLM that has not been validated. `package` requires both `flutter-boot` and `flutter-unit` to pass — the artifact is promoted only after the full verification chain succeeds.
 
 ---
 
@@ -79,7 +78,7 @@ Runs the SLM integration BVT (`SLMIntegrationBVT`) against a live `loom-engine.j
 | Pull model | Skipped if cache hit; pulls `qwen2.5-coder:1.5b` otherwise |
 | Boot `loom-engine.jar` | `java -jar dist/loom-engine.jar` in background |
 | Wait for port + token | Polls `/tmp/loom.log` for `LOOM_PORT=` and `LOOM_TOKEN=` lines; exports both to `$GITHUB_ENV` |
-| `./gradlew integrationTest` | Runs `SLMIntegrationBVT` via `--tests @Tag("integration")`; receives base URL + token via `LOOM_INTEGRATION_BASE_URL` / `LOOM_INTEGRATION_TOKEN` env vars |
+| `./gradlew integrationTest` | Runs `SLMIntegrationBVT` (selected by `includeTags("integration")` in the task definition); receives base URL + token via `LOOM_INTEGRATION_BASE_URL` / `LOOM_INTEGRATION_TOKEN` env vars |
 | Upload integration test report | `actions/upload-artifact@v4`, 7-day retention |
 
 #### Why `SLMIntegrationBVT` uses system properties, not env vars directly
@@ -101,7 +100,7 @@ Runs the Flutter integration test against a freshly booted `loom-engine.jar`. Re
 | Boot `loom-engine.jar` | Background process; stdout redirected to `/tmp/loom-flutter.log` |
 | Wait for port + token | Same polling script; exports to `$GITHUB_ENV` |
 | `flutter pub get` | Resolves dependencies |
-| `flutter test integration_test/` | Runs `app_test.dart` with `--dart-define=LOOM_ENGINE_URL` and `--dart-define=LOOM_TOKEN` injected from `$GITHUB_ENV` |
+| `xvfb-run flutter test integration_test/ --device-id linux` | Runs `app_test.dart` under a virtual display (required on `ubuntu-latest` for Flutter Linux desktop); `--dart-define=LOOM_ENGINE_URL` and `--dart-define=LOOM_TOKEN` injected from `$GITHUB_ENV` |
 | Upload flutter-boot test report | `actions/upload-artifact@v4`, 7-day retention |
 
 #### `integration_test/app_test.dart` design
@@ -129,7 +128,7 @@ Runs Flutter static analysis and unit tests independently of the engine. Require
 
 ### Job 5: `package`
 
-Pure artifact-promotion step. Requires `build-and-test`, runs in parallel with `integration` and `flutter-unit`.
+Pure artifact-promotion step. Requires both `flutter-boot` and `flutter-unit` — the artifact is promoted only after the full verification chain (Java unit tests → SLM BVT → Flutter boot test + Flutter unit tests) has passed.
 
 | Step | Purpose |
 |---|---|

@@ -146,10 +146,17 @@ val integrationTest by tasks.registering(Test::class) {
         includeTags("integration")
     }
 
-    // Pass through env vars set by CI (or locally) as JVM system properties
-    // so SLMIntegrationBVT can read them via System.getProperty(...)
-    val baseUrl = System.getenv("LOOM_INTEGRATION_BASE_URL") ?: ""
-    val token   = System.getenv("LOOM_INTEGRATION_TOKEN")    ?: ""
+    // Resolve coordinates for the live engine: env var (CI) takes precedence,
+    // then the matching -D system property (local developer run), then "".
+    // This lets developers run:
+    //   ./gradlew integrationTest \
+    //       -Dloom.integration.baseUrl=http://localhost:7070 \
+    //       -Dloom.integration.token=<token>
+    // without having to export environment variables.
+    val baseUrl = System.getenv("LOOM_INTEGRATION_BASE_URL")
+        ?: System.getProperty("loom.integration.baseUrl", "")
+    val token = System.getenv("LOOM_INTEGRATION_TOKEN")
+        ?: System.getProperty("loom.integration.token", "")
     systemProperty("loom.integration.baseUrl", baseUrl)
     systemProperty("loom.integration.token",   token)
 

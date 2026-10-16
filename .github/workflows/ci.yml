@@ -136,9 +136,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: loom-engine-staging
-          path: dist/
+          # Artifact lands at $GITHUB_WORKSPACE/dist/ (repo root), not backend/loom/dist/.
+          # The boot step references it with an absolute path to avoid confusion with the
+          # backend/loom default working-directory.
+          path: ${{ github.workspace }}/dist/
 
       - name: Install Ollama
+        working-directory: ${{ github.workspace }}
         run: curl -fsSL https://ollama.com/install.sh | sh
 
       - name: Cache Ollama model
@@ -150,6 +154,7 @@ jobs:
             ollama-qwen2.5-coder-
 
       - name: Start Ollama server
+        working-directory: ${{ github.workspace }}
         run: |
           ollama serve > /tmp/ollama.log 2>&1 &
           echo "Waiting for Ollama to be ready..."
@@ -162,15 +167,18 @@ jobs:
           done
 
       - name: Pull model (cache miss only)
+        working-directory: ${{ github.workspace }}
         run: |
           ollama list | grep -q "qwen2.5-coder:1.5b" \
             && echo "Model already cached." \
             || ollama pull qwen2.5-coder:1.5b
 
       - name: Boot loom-engine.jar
+        working-directory: ${{ github.workspace }}
         run: java -jar dist/loom-engine.jar > /tmp/loom.log 2>&1 &
 
       - name: Wait for loom-engine and capture port + token
+        working-directory: ${{ github.workspace }}
         run: |
           echo "Waiting for loom-engine to print LOOM_PORT and LOOM_TOKEN..."
           for i in $(seq 1 30); do
@@ -232,9 +240,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: loom-engine-staging
-          path: dist/
+          path: ${{ github.workspace }}/dist/
 
       - name: Install Ollama
+        working-directory: ${{ github.workspace }}
         run: curl -fsSL https://ollama.com/install.sh | sh
 
       - name: Cache Ollama model
@@ -246,6 +255,7 @@ jobs:
             ollama-qwen2.5-coder-
 
       - name: Start Ollama server
+        working-directory: ${{ github.workspace }}
         run: |
           ollama serve > /tmp/ollama-flutter.log 2>&1 &
           echo "Waiting for Ollama to be ready..."
@@ -258,15 +268,18 @@ jobs:
           done
 
       - name: Pull model (cache miss only)
+        working-directory: ${{ github.workspace }}
         run: |
           ollama list | grep -q "qwen2.5-coder:1.5b" \
             && echo "Model already cached." \
             || ollama pull qwen2.5-coder:1.5b
 
       - name: Boot loom-engine.jar
+        working-directory: ${{ github.workspace }}
         run: java -jar dist/loom-engine.jar > /tmp/loom-flutter.log 2>&1 &
 
       - name: Wait for loom-engine and capture port + token
+        working-directory: ${{ github.workspace }}
         run: |
           echo "Waiting for loom-engine to print LOOM_PORT and LOOM_TOKEN..."
           for i in $(seq 1 30); do
@@ -293,6 +306,7 @@ jobs:
         run: flutter pub get
 
       - name: Install xvfb (virtual display for Linux Flutter)
+        working-directory: ${{ github.workspace }}
         run: sudo apt-get install -y xvfb libgtk-3-dev
 
       - name: Flutter integration test (boot + /health check + widget render)

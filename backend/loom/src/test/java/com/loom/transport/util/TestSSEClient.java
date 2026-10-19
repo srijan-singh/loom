@@ -58,6 +58,12 @@ public class TestSSEClient {
         this.url = "http://localhost:" + port + "/events?token=" + token;
     }
 
+    /** Construct with a full base URL (e.g. {@code http://localhost:7070}). */
+    public TestSSEClient(int clientId, String baseUrl, String token) {
+        this.clientId = clientId;
+        this.url = baseUrl + "/events?token=" + token;
+    }
+
     /**
      * Starts the SSE connection on a daemon thread and blocks until the server sends back a 200 (or
      * 3 s elapses).

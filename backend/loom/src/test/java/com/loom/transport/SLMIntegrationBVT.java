@@ -162,17 +162,16 @@ class SLMIntegrationBVT {
 
     @Test
     @Order(5)
-    @DisplayName("GET /events with valid token → 200, Content-Type is text/event-stream")
+    @DisplayName("GET /events with valid token → SSE connection accepted (HTTP 200)")
     void sseEndpointRespondsWithEventStream() throws Exception {
-        // Extract the port from BASE_URL so TestSSEClient can build its own URL.
-        // BASE_URL is "http://localhost:<port>", so parse the port from the URI.
-        int port = URI.create(BASE_URL).getPort();
-
-        TestSSEClient sse = new TestSSEClient(0, port, TOKEN);
+        // Pass BASE_URL directly — avoids fragile port-parsing (URI.getPort()
+        // returns -1 when no explicit port is present in the URL).
+        TestSSEClient sse = new TestSSEClient(0, BASE_URL, TOKEN);
         try {
             sse.connect();
-            assertTrue(sse.isConnected(),
-                    "SSE endpoint must accept the connection and respond with 200");
+            assertTrue(
+                    sse.isConnected(),
+                    "SSE endpoint must accept the connection and respond with HTTP 200");
         } finally {
             sse.disconnect();
         }

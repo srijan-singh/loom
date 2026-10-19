@@ -77,18 +77,18 @@ void main() {
   // Hits GET /health on the live engine booted by CI.
   // Skipped gracefully when LOOM_ENGINE_URL is not provided (local runs without
   // a running engine).
-  test('loom-engine /health returns 200', () async {
-    if (_engineUrl.isEmpty) {
-      // Not a failure — just no engine available in this run.
-      return;
-    }
-
-    final response = await http.get(
-      Uri.parse('$_engineUrl/health'),
-      headers: {
-        if (_engineToken.isNotEmpty) 'X-Loom-Token': _engineToken,
-      },
-    );
+  test(
+    'loom-engine /health returns 200',
+    skip: _engineUrl.isEmpty ? 'LOOM_ENGINE_URL not set — no engine available' : false,
+    () async {
+    final response = await http
+        .get(
+          Uri.parse('$_engineUrl/health'),
+          headers: {
+            if (_engineToken.isNotEmpty) 'X-Loom-Token': _engineToken,
+          },
+        )
+        .timeout(const Duration(seconds: 10));
 
     expect(
       response.statusCode,

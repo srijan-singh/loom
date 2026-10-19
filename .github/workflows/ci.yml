@@ -175,13 +175,20 @@ jobs:
 
       - name: Boot loom-engine.jar
         working-directory: ${{ github.workspace }}
-        run: java -jar dist/loom-engine.jar > /tmp/loom.log 2>&1 &
+        run: |
+          java -jar dist/loom-engine.jar > /tmp/loom.log 2>&1 &
+          echo "LOOM_ENGINE_PID=$!" >> $GITHUB_ENV
 
       - name: Wait for loom-engine and capture port + token
         working-directory: ${{ github.workspace }}
         run: |
           echo "Waiting for loom-engine to print LOOM_PORT and LOOM_TOKEN..."
           for i in $(seq 1 30); do
+            if ! kill -0 "$LOOM_ENGINE_PID" 2>/dev/null; then
+              echo "ERROR: loom-engine process exited early."
+              cat /tmp/loom.log
+              exit 1
+            fi
             PORT_LINE=$(grep "^LOOM_PORT=" /tmp/loom.log 2>/dev/null || true)
             TOKEN_LINE=$(grep "^LOOM_TOKEN=" /tmp/loom.log 2>/dev/null || true)
             if [ -n "$PORT_LINE" ] && [ -n "$TOKEN_LINE" ]; then
@@ -276,13 +283,20 @@ jobs:
 
       - name: Boot loom-engine.jar
         working-directory: ${{ github.workspace }}
-        run: java -jar dist/loom-engine.jar > /tmp/loom-flutter.log 2>&1 &
+        run: |
+          java -jar dist/loom-engine.jar > /tmp/loom-flutter.log 2>&1 &
+          echo "LOOM_ENGINE_PID=$!" >> $GITHUB_ENV
 
       - name: Wait for loom-engine and capture port + token
         working-directory: ${{ github.workspace }}
         run: |
           echo "Waiting for loom-engine to print LOOM_PORT and LOOM_TOKEN..."
           for i in $(seq 1 30); do
+            if ! kill -0 "$LOOM_ENGINE_PID" 2>/dev/null; then
+              echo "ERROR: loom-engine process exited early."
+              cat /tmp/loom-flutter.log
+              exit 1
+            fi
             PORT_LINE=$(grep "^LOOM_PORT=" /tmp/loom-flutter.log 2>/dev/null || true)
             TOKEN_LINE=$(grep "^LOOM_TOKEN=" /tmp/loom-flutter.log 2>/dev/null || true)
             if [ -n "$PORT_LINE" ] && [ -n "$TOKEN_LINE" ]; then

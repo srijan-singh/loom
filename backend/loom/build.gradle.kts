@@ -129,8 +129,42 @@ tasks.named("check") {
 }
 
 tasks.test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags("integration")
+    }
     jvmArgs("-Dnet.bytebuddy.experimental=true")
+}
+
+val integrationTest by tasks.registering(Test::class) {
+    description = "Runs integration tests against a live loom-engine.jar + Ollama instance."
+    group = "verification"
+
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+
+    useJUnitPlatform {
+        includeTags("integration")
+    }
+
+    // Resolve coordinates for the live engine: env var (CI) takes precedence,
+    // then the matching -D system property (local developer run), then "".
+    // This lets developers run:
+    //   ./gradlew integrationTest \
+    //       -Dloom.integration.baseUrl=http://localhost:7070 \
+    //       -Dloom.integration.token=<token>
+    // without having to export environment variables.
+    val baseUrl = System.getenv("LOOM_INTEGRATION_BASE_URL")
+        ?: System.getProperty("loom.integration.baseUrl", "")
+    val token = System.getenv("LOOM_INTEGRATION_TOKEN")
+        ?: System.getProperty("loom.integration.token", "")
+    systemProperty("loom.integration.baseUrl", baseUrl)
+    systemProperty("loom.integration.token",   token)
+
+    jvmArgs("-Dnet.bytebuddy.experimental=true")
+
+    // Do NOT attach to the check lifecycle.
+    // integrationTest is invoked explicitly by the CI integration job only.
+    shouldRunAfter(tasks.test)
 }
 
 tasks.shadowJar {

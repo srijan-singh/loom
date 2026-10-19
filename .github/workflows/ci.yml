@@ -63,11 +63,12 @@ jobs:
         with:
           name: loom-engine-staging
           path: backend/loom/build/libs/loom-engine.jar
-          retention-days: 1   # only needs to survive until the package job
+          retention-days: 1   # only needs to survive until the package and integration jobs
 
-  flutter-test:
-    name: Flutter Test
+  flutter-unit:
+    name: Flutter Unit Test & Analyse
     runs-on: ubuntu-latest
+    needs: build-and-test
 
     steps:
       - name: Checkout
@@ -88,14 +89,14 @@ jobs:
         working-directory: frontend
         run: flutter analyze --no-fatal-infos
 
-      - name: Test
+      - name: Unit tests
         working-directory: frontend
         run: flutter test --reporter expanded
 
   package:
     name: Package shadow JAR
     runs-on: ubuntu-latest
-    needs: build-and-test
+    needs: [flutter-boot, flutter-unit]
 
     steps:
       - name: Download JAR from build job
@@ -110,3 +111,230 @@ jobs:
           name: loom-engine
           path: dist/loom-engine.jar
           retention-days: 30
+
+  integration:
+    name: Integration Test (Java + Ollama SLM)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+          cache-dependency-path: backend/loom/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Download shadow JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: loom-engine-staging
+          # Artifact lands at $GITHUB_WORKSPACE/dist/ (repo root), not backend/loom/dist/.
+          # The boot step references it with an absolute path to avoid confusion with the
+          # backend/loom default working-directory.
+          path: ${{ github.workspace }}/dist/
+
+      - name: Install Ollama
+        working-directory: ${{ github.workspace }}
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Cache Ollama model
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: ollama-qwen2.5-coder-1.5b
+          restore-keys: |
+            ollama-qwen2.5-coder-
+
+      - name: Start Ollama server
+        working-directory: ${{ github.workspace }}
+        run: |
+          ollama serve > /tmp/ollama.log 2>&1 &
+          echo "Waiting for Ollama to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:11434 > /dev/null 2>&1; then
+              echo "Ollama is ready."
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Pull model (cache miss only)
+        working-directory: ${{ github.workspace }}
+        run: |
+          ollama list | grep -q "qwen2.5-coder:1.5b" \
+            && echo "Model already cached." \
+            || ollama pull qwen2.5-coder:1.5b
+
+      - name: Boot loom-engine.jar
+        working-directory: ${{ github.workspace }}
+        run: |
+          java -jar dist/loom-engine.jar > /tmp/loom.log 2>&1 &
+          echo "LOOM_ENGINE_PID=$!" >> $GITHUB_ENV
+
+      - name: Wait for loom-engine and capture port + token
+        working-directory: ${{ github.workspace }}
+        run: |
+          echo "Waiting for loom-engine to print LOOM_PORT and LOOM_TOKEN..."
+          for i in $(seq 1 30); do
+            if ! kill -0 "$LOOM_ENGINE_PID" 2>/dev/null; then
+              echo "ERROR: loom-engine process exited early."
+              cat /tmp/loom.log
+              exit 1
+            fi
+            PORT_LINE=$(grep "^LOOM_PORT=" /tmp/loom.log 2>/dev/null || true)
+            TOKEN_LINE=$(grep "^LOOM_TOKEN=" /tmp/loom.log 2>/dev/null || true)
+            if [ -n "$PORT_LINE" ] && [ -n "$TOKEN_LINE" ]; then
+              LOOM_PORT=$(echo "$PORT_LINE"  | cut -d= -f2)
+              LOOM_TOKEN=$(echo "$TOKEN_LINE" | cut -d= -f2)
+              echo "LOOM_PORT=$LOOM_PORT"   >> $GITHUB_ENV
+              echo "LOOM_TOKEN=$LOOM_TOKEN" >> $GITHUB_ENV
+              echo "loom-engine ready on port $LOOM_PORT"
+              break
+            fi
+            sleep 1
+          done
+          if [ -z "$LOOM_PORT" ]; then
+            echo "ERROR: loom-engine did not start within 30 seconds."
+            cat /tmp/loom.log
+            exit 1
+          fi
+
+      - name: Run integration BVT
+        env:
+          LOOM_INTEGRATION_BASE_URL: http://localhost:${{ env.LOOM_PORT }}
+          LOOM_INTEGRATION_TOKEN: ${{ env.LOOM_TOKEN }}
+        run: ./gradlew integrationTest --no-daemon
+
+      - name: Upload integration test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-report
+          path: backend/loom/build/reports/tests/integrationTest/
+          retention-days: 7
+
+  flutter-boot:
+    name: Flutter Boot Test (Flutter + loom-engine.jar)
+    runs-on: ubuntu-latest
+    needs: integration
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Download shadow JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: loom-engine-staging
+          path: ${{ github.workspace }}/dist/
+
+      - name: Install Ollama
+        working-directory: ${{ github.workspace }}
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Cache Ollama model
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: ollama-qwen2.5-coder-1.5b
+          restore-keys: |
+            ollama-qwen2.5-coder-
+
+      - name: Start Ollama server
+        working-directory: ${{ github.workspace }}
+        run: |
+          ollama serve > /tmp/ollama-flutter.log 2>&1 &
+          echo "Waiting for Ollama to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:11434 > /dev/null 2>&1; then
+              echo "Ollama is ready."
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Pull model (cache miss only)
+        working-directory: ${{ github.workspace }}
+        run: |
+          ollama list | grep -q "qwen2.5-coder:1.5b" \
+            && echo "Model already cached." \
+            || ollama pull qwen2.5-coder:1.5b
+
+      - name: Boot loom-engine.jar
+        working-directory: ${{ github.workspace }}
+        run: |
+          java -jar dist/loom-engine.jar > /tmp/loom-flutter.log 2>&1 &
+          echo "LOOM_ENGINE_PID=$!" >> $GITHUB_ENV
+
+      - name: Wait for loom-engine and capture port + token
+        working-directory: ${{ github.workspace }}
+        run: |
+          echo "Waiting for loom-engine to print LOOM_PORT and LOOM_TOKEN..."
+          for i in $(seq 1 30); do
+            if ! kill -0 "$LOOM_ENGINE_PID" 2>/dev/null; then
+              echo "ERROR: loom-engine process exited early."
+              cat /tmp/loom-flutter.log
+              exit 1
+            fi
+            PORT_LINE=$(grep "^LOOM_PORT=" /tmp/loom-flutter.log 2>/dev/null || true)
+            TOKEN_LINE=$(grep "^LOOM_TOKEN=" /tmp/loom-flutter.log 2>/dev/null || true)
+            if [ -n "$PORT_LINE" ] && [ -n "$TOKEN_LINE" ]; then
+              LOOM_PORT=$(echo "$PORT_LINE"  | cut -d= -f2)
+              LOOM_TOKEN=$(echo "$TOKEN_LINE" | cut -d= -f2)
+              echo "LOOM_PORT=$LOOM_PORT"   >> $GITHUB_ENV
+              echo "LOOM_TOKEN=$LOOM_TOKEN" >> $GITHUB_ENV
+              echo "loom-engine ready on port $LOOM_PORT"
+              break
+            fi
+            sleep 1
+          done
+          if [ -z "$LOOM_PORT" ]; then
+            echo "ERROR: loom-engine did not start within 30 seconds."
+            cat /tmp/loom-flutter.log
+            exit 1
+          fi
+
+      - name: Get Flutter dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Install xvfb (virtual display for Linux Flutter)
+        working-directory: ${{ github.workspace }}
+        run: sudo apt-get install -y xvfb libgtk-3-dev libsecret-1-dev libjsoncpp-dev
+
+      - name: Flutter integration test (boot + /health check + widget render)
+        working-directory: frontend
+        run: |
+          xvfb-run --auto-servernum flutter test integration_test/ \
+            --device-id linux \
+            --dart-define=LOOM_ENGINE_URL=http://127.0.0.1:${{ env.LOOM_PORT }} \
+            --dart-define=LOOM_TOKEN=${{ env.LOOM_TOKEN }}
+
+      - name: Upload flutter-boot test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-boot-test-report
+          path: frontend/build/flutter_test/
+          retention-days: 7

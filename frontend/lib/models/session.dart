@@ -35,16 +35,16 @@ class Session {
   });
 
   factory Session.fromJson(Map<String, dynamic> json) => Session(
-        id: json['id'] as String,
-        workspaceId: json['workspaceId'] as String,
-        workflowDefinitionId: json['workflowDefinitionId'] as String,
-        status: _statusFromString(json['status'] as String?),
-        startedAt: (json['startedAt'] as num).toInt(),
-        completedAt: json['completedAt'] != null
-            ? (json['completedAt'] as num).toInt()
-            : null,
-        agentCount: json['agentCount'] != null
-            ? (json['agentCount'] as num).toInt()
-            : null,
-      );
+    id: json['id'] as String,
+    workspaceId: json['workspaceId'] as String,
+    workflowDefinitionId: json['workflowDefinitionId'] as String,
+    status: _statusFromString(json['status'] as String?),
+    startedAt: (json['startedAt'] as num).toInt(),
+    completedAt: json['completedAt'] != null
+        ? (json['completedAt'] as num).toInt()
+        : null,
+    agentCount: json['agentCount'] != null
+        ? (json['agentCount'] as num).toInt()
+        : null,
+  );
 }

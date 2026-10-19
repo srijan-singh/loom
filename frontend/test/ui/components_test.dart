@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loom_ui/models/agent_definition.dart';
+import 'package:loom_ui/models/mcp_connection.dart';
 import 'package:loom_ui/models/session.dart';
+import 'package:loom_ui/models/skill.dart';
+import 'package:loom_ui/ui/components/agent_card.dart';
+import 'package:loom_ui/ui/components/confirm_dialog.dart';
 import 'package:loom_ui/ui/components/empty_state.dart';
 import 'package:loom_ui/ui/components/loom_button.dart';
 import 'package:loom_ui/ui/components/loom_text_field.dart';
+import 'package:loom_ui/ui/components/mcp_card.dart';
 import 'package:loom_ui/ui/components/session_row.dart';
+import 'package:loom_ui/ui/components/skill_card.dart';
 import 'package:loom_ui/ui/components/stat_card.dart';
+import 'package:loom_ui/ui/components/tag_chip_input.dart';
 import 'package:loom_ui/ui/theme/loom_theme.dart';
 
 Widget _wrapWithTheme(Widget child, {ThemeData? theme}) {
@@ -220,6 +228,255 @@ void main() {
       expect(find.text('running'), findsOneWidget);
       expect(find.text('PR Review Workflow'), findsOneWidget);
       expect(find.text('2 agents'), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Task-03 widget tests
+  // ---------------------------------------------------------------------------
+
+  group('TagChipInput', () {
+    testWidgets('adds a tag on Enter and fires onChanged', (tester) async {
+      List<String> latest = [];
+      await tester.pumpWidget(
+        _wrapWithTheme(
+          TagChipInput(
+            initialTags: const [],
+            onChanged: (tags) => latest = tags,
+          ),
+        ),
+      );
+
+      await tester.enterText(find.byKey(const ValueKey('tag-input')), 'dart');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+
+      expect(find.text('dart'), findsOneWidget);
+      expect(latest, contains('dart'));
+    });
+
+    testWidgets('removes a tag on delete icon tap and fires onChanged',
+        (tester) async {
+      List<String> latest = ['flutter'];
+      await tester.pumpWidget(
+        _wrapWithTheme(
+          TagChipInput(
+            initialTags: const ['flutter'],
+            onChanged: (tags) => latest = tags,
+          ),
+        ),
+      );
+
+      expect(find.text('flutter'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('tag-delete-0')));
+      await tester.pump();
+
+      expect(find.text('flutter'), findsNothing);
+      expect(latest, isEmpty);
+    });
+  });
+
+  group('ConfirmDialog', () {
+    testWidgets('returns true on confirm tap', (tester) async {
+      bool? result;
+      await tester.pumpWidget(
+        _wrapWithTheme(
+          Builder(
+            builder: (ctx) => LoomButton(
+              label: 'Open',
+              onPressed: () async {
+                result = await ConfirmDialog.show(
+                  ctx,
+                  title: 'Delete item?',
+                  message: 'This cannot be undone.',
+                  confirmLabel: 'Delete',
+                  isDestructive: true,
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      // Dialog is showing — tap Confirm
+      expect(find.text('Delete item?'), findsOneWidget);
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(result, isTrue);
+    });
+
+    testWidgets('returns false on cancel tap', (tester) async {
+      bool? result;
+      await tester.pumpWidget(
+        _wrapWithTheme(
+          Builder(
+            builder: (ctx) => LoomButton(
+              label: 'Open',
+              onPressed: () async {
+                result = await ConfirmDialog.show(
+                  ctx,
+                  title: 'Delete item?',
+                  message: 'This cannot be undone.',
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delete item?'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(result, isFalse);
+    });
+  });
+
+  group('SkillCard', () {
+    const skill = Skill(
+      id: 'sk-1',
+      name: 'Code Reviewer',
+      description: 'Reviews pull requests for correctness and style.',
+      tags: ['git', 'review'],
+      createdAt: 0,
+      updatedAt: 0,
+    );
+
+    testWidgets('displays name, description, tags, triggers onTap and overflow actions',
+        (tester) async {
+      var tapped = false;
+      var edited = false;
+      var deleted = false;
+
+      await tester.pumpWidget(
+        _wrapWithTheme(
+          SkillCard(
+            skill: skill,
+            onTap: () => tapped = true,
+            onEdit: () => edited = true,
+            onDelete: () => deleted = true,
+          ),
+        ),
+      );
+
+      // Verify content
+      expect(find.text('Code Reviewer'), findsOneWidget);
+      expect(find.text('Reviews pull requests for correctness and style.'),
+          findsOneWidget);
+      expect(find.text('git'), findsOneWidget);
+      expect(find.text('review'), findsOneWidget);
+
+      // onTap
+      await tester.tap(find.text('Code Reviewer'));
+      await tester.pump();
+      expect(tapped, isTrue);
+
+      // Edit via overflow menu
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('skill-edit')));
+      await tester.pumpAndSettle();
+      expect(edited, isTrue);
+
+      // Delete via overflow menu
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('skill-delete')));
+      await tester.pumpAndSettle();
+      expect(deleted, isTrue);
+    });
+  });
+
+  group('MCPCard', () {
+    testWidgets('renders green dot for CONNECTED', (tester) async {
+      const mcp = MCPConnection(
+        id: 'mcp-1',
+        name: 'GitHub MCP',
+        type: 'github',
+        status: MCPStatus.CONNECTED,
+        createdAt: 0,
+      );
+
+      await tester.pumpWidget(
+        _wrapWithTheme(
+          MCPCard(
+            mcp: mcp,
+            onDelete: () {},
+          ),
+        ),
+      );
+
+      final dot = tester.widget<Container>(
+        find.byKey(const ValueKey('mcp-status-dot')),
+      );
+      final decoration = dot.decoration as BoxDecoration;
+      expect(decoration.color, equals(LoomColors.light.success));
+    });
+
+    testWidgets('renders grey dot for DISCONNECTED', (tester) async {
+      const mcp = MCPConnection(
+        id: 'mcp-2',
+        name: 'Jira MCP',
+        type: 'jira',
+        status: MCPStatus.DISCONNECTED,
+        createdAt: 0,
+      );
+
+      await tester.pumpWidget(
+        _wrapWithTheme(
+          MCPCard(
+            mcp: mcp,
+            onDelete: () {},
+          ),
+        ),
+      );
+
+      final dot = tester.widget<Container>(
+        find.byKey(const ValueKey('mcp-status-dot')),
+      );
+      final decoration = dot.decoration as BoxDecoration;
+      expect(decoration.color, equals(LoomColors.light.ink3));
+    });
+  });
+
+  group('AgentCard', () {
+    const agent = AgentDefinition(
+      id: 'ag-1',
+      name: 'Reviewer Agent',
+      roleDescription: 'Reviews code and suggests improvements.',
+      skillId: 'sk-1',
+      allowedMcpIds: ['mcp-1', 'mcp-2'],
+      createdAt: 0,
+      updatedAt: 0,
+    );
+
+    testWidgets('displays agent name, role, skill name, and MCP list', (tester) async {
+      await tester.pumpWidget(
+        _wrapWithTheme(
+          AgentCard(
+            agent: agent,
+            skillName: 'Code Reviewer',
+            mcpNames: const ['GitHub', 'Jira'],
+            onTap: () {},
+            onEdit: () {},
+            onDelete: () {},
+          ),
+        ),
+      );
+
+      expect(find.text('Reviewer Agent'), findsOneWidget);
+      expect(find.text('Reviews code and suggests improvements.'), findsOneWidget);
+      expect(find.text('Code Reviewer'), findsOneWidget);
+      expect(find.text('GitHub'), findsOneWidget);
+      expect(find.text('Jira'), findsOneWidget);
     });
   });
 }

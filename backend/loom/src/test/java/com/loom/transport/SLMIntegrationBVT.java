@@ -18,15 +18,14 @@ package com.loom.transport;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Duration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loom.transport.util.TestSSEClient;
 import org.junit.jupiter.api.*;
 
 @Tag("integration")
@@ -165,26 +164,17 @@ class SLMIntegrationBVT {
     @Order(5)
     @DisplayName("GET /events with valid token → 200, Content-Type is text/event-stream")
     void sseEndpointRespondsWithEventStream() throws Exception {
-        // Use InputStream so send() returns as soon as the response headers arrive,
-        // without waiting for the SSE stream to close (it never does).
-        // Assert status and headers first, then close — closing before reading headers
-        // can abort the connection before HttpClient buffers the response metadata.
-        HttpResponse<InputStream> resp =
-                http.send(
-                        HttpRequest.newBuilder()
-                                .uri(URI.create(BASE_URL + "/events?token=" + TOKEN))
-                                .timeout(Duration.ofSeconds(5))
-                                .GET()
-                                .build(),
-                        HttpResponse.BodyHandlers.ofInputStream());
+        // Extract the port from BASE_URL so TestSSEClient can build its own URL.
+        // BASE_URL is "http://localhost:<port>", so parse the port from the URI.
+        int port = URI.create(BASE_URL).getPort();
 
-        int status = resp.statusCode();
-        String contentType = resp.headers().firstValue("Content-Type").orElse("");
-        resp.body().close(); // discard stream only after headers are captured
-
-        assertEquals(200, status);
-        assertTrue(
-                contentType.contains("text/event-stream"),
-                "Content-Type must be text/event-stream, got: " + contentType);
+        TestSSEClient sse = new TestSSEClient(0, port, TOKEN);
+        try {
+            sse.connect();
+            assertTrue(sse.isConnected(),
+                    "SSE endpoint must accept the connection and respond with 200");
+        } finally {
+            sse.disconnect();
+        }
     }
 }

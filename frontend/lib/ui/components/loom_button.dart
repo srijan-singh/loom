@@ -51,11 +51,16 @@ class LoomButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[icon!, const SizedBox(width: 6)],
-              Text(label,
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                       color: fg,
                       fontSize: compact ? 13 : 14,
-                      fontWeight: FontWeight.w500)),
+                      fontWeight: FontWeight.w500),
+                ),
+              ),
             ],
           );
 

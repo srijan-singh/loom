@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loom_ui/models/agent_definition.dart';
+import 'package:loom_ui/models/llm_connection.dart';
 import 'package:loom_ui/models/mcp_connection.dart';
 import 'package:loom_ui/models/skill.dart';
 import 'package:loom_ui/providers/library_providers.dart';
+import 'package:loom_ui/providers/llm_providers.dart';
 import 'package:loom_ui/ui/components/agent_card.dart';
 import 'package:loom_ui/ui/components/confirm_dialog.dart';
 import 'package:loom_ui/ui/components/empty_state.dart';
@@ -77,6 +79,17 @@ class _FakeMcpsNotifier extends McpsNotifier {
   Future<List<MCPConnection>> build() async => List.from(_mcps);
 }
 
+class _FakeLlmConnectionsNotifier extends LlmConnectionsNotifier {
+  _FakeLlmConnectionsNotifier(List<LlmConnection> connections)
+      : _connections = List.from(connections);
+
+  final List<LlmConnection> _connections;
+  String? lastSetLlmConnectionId = 'unset';
+
+  @override
+  Future<List<LlmConnection>> build() async => List.from(_connections);
+}
+
 const _sampleSkill1 = Skill(
   id: 'sk-1',
   name: 'Code Reviewer',
@@ -139,6 +152,7 @@ Widget _buildTabView({
   required _FakeAgentsNotifier agentsNotifier,
   List<Skill> skills = const [_sampleSkill1, _sampleSkill2],
   List<MCPConnection> mcps = const [_sampleMcp1, _sampleMcp2],
+  List<LlmConnection> llmConnections = const [],
   void Function(AgentDefinition)? onSelectAgent,
   VoidCallback? onNewAgent,
 }) {
@@ -147,6 +161,8 @@ Widget _buildTabView({
       agentsProvider.overrideWith(() => agentsNotifier),
       skillsProvider.overrideWith(() => _FakeSkillsNotifier(skills)),
       mcpsProvider.overrideWith(() => _FakeMcpsNotifier(mcps)),
+      llmConnectionsProvider
+          .overrideWith(() => _FakeLlmConnectionsNotifier(llmConnections)),
     ],
     child: MaterialApp(
       theme: LoomTheme.light,
@@ -165,6 +181,7 @@ Widget _buildDetailPanel({
   required _FakeAgentsNotifier agentsNotifier,
   List<Skill> skills = const [_sampleSkill1, _sampleSkill2],
   List<MCPConnection> mcps = const [_sampleMcp1, _sampleMcp2],
+  List<LlmConnection> llmConnections = const [],
   VoidCallback? onClose,
   void Function(AgentDefinition)? onSaved,
   VoidCallback? onCancel,
@@ -174,6 +191,8 @@ Widget _buildDetailPanel({
       agentsProvider.overrideWith(() => agentsNotifier),
       skillsProvider.overrideWith(() => _FakeSkillsNotifier(skills)),
       mcpsProvider.overrideWith(() => _FakeMcpsNotifier(mcps)),
+      llmConnectionsProvider
+          .overrideWith(() => _FakeLlmConnectionsNotifier(llmConnections)),
     ],
     child: MaterialApp(
       theme: LoomTheme.light,
@@ -611,6 +630,177 @@ void main() {
             .text,
         '',
       );
+    });
+
+    // ── LLM connection dropdown ──────────────────────────────────────────────
+
+    testWidgets(
+        'AgentDetailPanel shows LLM connection dropdown with Default first',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      const conn1 = LlmConnection(
+        id: 'llm-1',
+        name: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-4o',
+        apiKey: 'sk-****',
+        isDefault: true,
+        createdAt: 0,
+      );
+
+      final notifier = _FakeAgentsNotifier([]);
+      await tester.pumpWidget(
+        _buildDetailPanel(
+          agentsNotifier: notifier,
+          llmConnections: [conn1],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Dropdown is present
+      final dropdown =
+          find.byKey(const ValueKey('agent-llm-dropdown'));
+      expect(dropdown, findsOneWidget);
+
+      // Open the dropdown
+      await tester.tap(dropdown);
+      await tester.pumpAndSettle();
+
+      // "Default" option is first
+      expect(find.textContaining('Default').hitTestable(), findsWidgets);
+      // The named connection also appears
+      expect(find.text('OpenAI').hitTestable(), findsWidgets);
+    });
+
+    testWidgets(
+        'AgentDetailPanel: picking a connection saves llmConnectionId',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      const conn1 = LlmConnection(
+        id: 'llm-1',
+        name: 'My Groq',
+        baseUrl: 'https://api.groq.com/openai/v1',
+        model: 'llama3',
+        apiKey: 'gsk-****',
+        isDefault: false,
+        createdAt: 0,
+      );
+
+      final notifier = _FakeAgentsNotifier([_sampleAgent1]);
+      AgentDefinition? savedAgent;
+
+      await tester.pumpWidget(
+        _buildDetailPanel(
+          agent: _sampleAgent1,
+          agentsNotifier: notifier,
+          llmConnections: [conn1],
+          onSaved: (a) => savedAgent = a,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Open LLM dropdown
+      await tester.tap(find.byKey(const ValueKey('agent-llm-dropdown')));
+      await tester.pumpAndSettle();
+
+      // Select 'My Groq'
+      await tester.tap(find.text('My Groq').hitTestable());
+      await tester.pumpAndSettle();
+
+      // Save
+      await tester.tap(find.byKey(const ValueKey('agent-save-btn')));
+      await tester.pumpAndSettle();
+
+      expect(savedAgent?.llmConnectionId, 'llm-1');
+    });
+
+    testWidgets(
+        'AgentDetailPanel: picking Default saves null llmConnectionId',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      const conn1 = LlmConnection(
+        id: 'llm-1',
+        name: 'My Groq',
+        baseUrl: 'https://api.groq.com/openai/v1',
+        model: 'llama3',
+        apiKey: 'gsk-****',
+        isDefault: false,
+        createdAt: 0,
+      );
+
+      const agentWithConn = AgentDefinition(
+        id: 'ag-99',
+        name: 'Agent With LLM',
+        roleDescription: '',
+        llmConnectionId: 'llm-1',
+        createdAt: 0,
+        updatedAt: 0,
+      );
+
+      final notifier = _FakeAgentsNotifier([agentWithConn]);
+      AgentDefinition? savedAgent;
+
+      await tester.pumpWidget(
+        _buildDetailPanel(
+          agent: agentWithConn,
+          agentsNotifier: notifier,
+          llmConnections: [conn1],
+          onSaved: (a) => savedAgent = a,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Open LLM dropdown
+      await tester.tap(find.byKey(const ValueKey('agent-llm-dropdown')));
+      await tester.pumpAndSettle();
+
+      // Select Default (null value)
+      await tester.tap(find.text('Default').hitTestable().first);
+      await tester.pumpAndSettle();
+
+      // Save
+      await tester.tap(find.byKey(const ValueKey('agent-save-btn')));
+      await tester.pumpAndSettle();
+
+      expect(savedAgent?.llmConnectionId, isNull);
+    });
+
+    testWidgets(
+        'AgentDetailPanel shows only Default when llmConnectionsProvider is loading',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      // When loading, valueOrNull returns null => [] connections => only Default shown
+      final notifier = _FakeAgentsNotifier([]);
+
+      await tester.pumpWidget(
+        _buildDetailPanel(
+          agentsNotifier: notifier,
+          llmConnections: const [],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final dropdown =
+          find.byKey(const ValueKey('agent-llm-dropdown'));
+      expect(dropdown, findsOneWidget);
+
+      // Open dropdown
+      await tester.tap(dropdown);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Default').hitTestable(), findsWidgets);
     });
   });
 }

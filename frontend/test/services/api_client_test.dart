@@ -6,9 +6,11 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loom_ui/models/agent_definition.dart';
+import 'package:loom_ui/models/llm_connection.dart';
 import 'package:loom_ui/models/mcp_connection.dart';
 import 'package:loom_ui/models/skill.dart';
 import 'package:loom_ui/providers/library_providers.dart';
+import 'package:loom_ui/providers/llm_providers.dart';
 import 'package:loom_ui/services/api_client.dart';
 import 'package:loom_ui/services/engine_process_service.dart';
 
@@ -47,11 +49,13 @@ class FakeApiClient extends ApiClient {
   List<dynamic> skillsData = [];
   List<dynamic> mcpsData = [];
   List<dynamic> agentsData = [];
+  List<LlmConnection> llmConnectionsData = [];
 
   bool shouldThrow = false;
   Completer<List<dynamic>>? skillsCompleter;
   Completer<List<dynamic>>? mcpsCompleter;
   Completer<List<dynamic>>? agentsCompleter;
+  Completer<List<LlmConnection>>? llmCompleter;
 
   Skill? createdSkill;
   Skill? updatedSkill;
@@ -65,6 +69,10 @@ class FakeApiClient extends ApiClient {
   AgentDefinition? createdAgent;
   AgentDefinition? updatedAgent;
   String? deletedAgentId;
+
+  LlmConnection? createdLlmConnection;
+  String? deletedLlmConnectionId;
+  String? setDefaultLlmConnectionId;
 
   @override
   Future<List<dynamic>> getSkills() {
@@ -145,6 +153,51 @@ class FakeApiClient extends ApiClient {
   Future<void> deleteAgent(String id) async {
     if (shouldThrow) throw Exception('Delete agent error');
     deletedAgentId = id;
+  }
+
+  @override
+  Future<List<LlmConnection>> getLlmConnections() {
+    if (shouldThrow) throw Exception('LLM connections fetch error');
+    if (llmCompleter != null) return llmCompleter!.future;
+    return Future.value(List.from(llmConnectionsData));
+  }
+
+  @override
+  Future<LlmConnection> createLlmConnection(Map<String, dynamic> payload) async {
+    if (shouldThrow) throw Exception('Create LLM connection error');
+    final conn = LlmConnection(
+      id: 'new-llm-id',
+      name: payload['name'] as String,
+      baseUrl: payload['baseUrl'] as String,
+      model: payload['model'] as String,
+      apiKey: payload['apiKey'] as String,
+      isDefault: payload['isDefault'] as bool? ?? false,
+      createdAt: 1000,
+    );
+    createdLlmConnection = conn;
+    llmConnectionsData.add(conn);
+    return conn;
+  }
+
+  @override
+  Future<void> deleteLlmConnection(String id) async {
+    if (shouldThrow) throw Exception('Delete LLM connection error');
+    deletedLlmConnectionId = id;
+    llmConnectionsData.removeWhere((c) => c.id == id);
+  }
+
+  @override
+  Future<LlmConnection> setDefaultLlmConnection(String id) async {
+    if (shouldThrow) throw Exception('Set default LLM connection error');
+    setDefaultLlmConnectionId = id;
+    final idx = llmConnectionsData.indexWhere((c) => c.id == id);
+    if (idx != -1) {
+      llmConnectionsData = llmConnectionsData.map((c) {
+        return c.copyWith(isDefault: c.id == id);
+      }).toList();
+      return llmConnectionsData[idx].copyWith(isDefault: true);
+    }
+    throw Exception('Not found');
   }
 }
 
@@ -666,6 +719,247 @@ void main() {
         await expectLater(container.read(agentsProvider.future), throwsA(isA<Exception>()));
         expect(container.read(agentsProvider), isA<AsyncError<List<AgentDefinition>>>());
       });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // LLM Connections API tests
+  // ---------------------------------------------------------------------------
+
+  group('LLM Connections ApiClient', () {
+    late Dio dio;
+    late MockHttpClientAdapter mockAdapter;
+    late EngineProcessService engine;
+    late ApiClient client;
+
+    setUp(() {
+      dio = Dio();
+      mockAdapter = MockHttpClientAdapter();
+      dio.httpClientAdapter = mockAdapter;
+      engine = EngineProcessService();
+      client = ApiClient(engine, dio: dio);
+    });
+
+    test('getLlmConnections sends GET to /llm/connections', () async {
+      final conn = {
+        'id': 'llm-1',
+        'name': 'OpenAI',
+        'baseUrl': 'https://api.openai.com/v1',
+        'model': 'gpt-4o',
+        'apiKey': 'sk-****',
+        'isDefault': true,
+        'createdAt': 1000,
+      };
+      mockAdapter.handler = (options) async {
+        expect(options.method, 'GET');
+        expect(options.path, 'http://127.0.0.1:7070/llm/connections');
+        return jsonResponse([conn]);
+      };
+      final result = await client.getLlmConnections();
+      expect(result.length, 1);
+      expect(result.first.id, 'llm-1');
+      expect(result.first.isDefault, isTrue);
+    });
+
+    test('createLlmConnection sends POST to /llm/connections with payload',
+        () async {
+      final payload = {
+        'name': 'My OpenAI',
+        'baseUrl': 'https://api.openai.com/v1',
+        'model': 'gpt-4o',
+        'apiKey': 'sk-test',
+        'isDefault': true,
+      };
+      final responseConn = {
+        'id': 'llm-new',
+        'name': 'My OpenAI',
+        'baseUrl': 'https://api.openai.com/v1',
+        'model': 'gpt-4o',
+        'apiKey': 'sk-****',
+        'isDefault': true,
+        'createdAt': 1000,
+      };
+      mockAdapter.handler = (options) async {
+        expect(options.method, 'POST');
+        expect(options.path, 'http://127.0.0.1:7070/llm/connections');
+        final data = options.data as Map<String, dynamic>;
+        expect(data['name'], 'My OpenAI');
+        expect(data['baseUrl'], 'https://api.openai.com/v1');
+        expect(data['model'], 'gpt-4o');
+        expect(data['apiKey'], 'sk-test');
+        expect(data['isDefault'], true);
+        return jsonResponse(responseConn, statusCode: 201);
+      };
+      final created = await client.createLlmConnection(payload);
+      expect(created.id, 'llm-new');
+      expect(created.name, 'My OpenAI');
+    });
+
+    test('deleteLlmConnection sends DELETE to /llm/connections/{id}', () async {
+      mockAdapter.handler = (options) async {
+        expect(options.method, 'DELETE');
+        expect(options.path, 'http://127.0.0.1:7070/llm/connections/llm-1');
+        return jsonResponse(null, statusCode: 204);
+      };
+      await expectLater(client.deleteLlmConnection('llm-1'), completes);
+    });
+
+    test('setDefaultLlmConnection sends PATCH to /llm/connections/{id}/default',
+        () async {
+      final updatedConn = {
+        'id': 'llm-2',
+        'name': 'Groq',
+        'baseUrl': 'https://api.groq.com/openai/v1',
+        'model': 'llama3-8b-8192',
+        'apiKey': 'gsk-****',
+        'isDefault': true,
+        'createdAt': 2000,
+      };
+      mockAdapter.handler = (options) async {
+        expect(options.method, 'PATCH');
+        expect(options.path,
+            'http://127.0.0.1:7070/llm/connections/llm-2/default');
+        return jsonResponse(updatedConn);
+      };
+      final result = await client.setDefaultLlmConnection('llm-2');
+      expect(result.id, 'llm-2');
+      expect(result.isDefault, isTrue);
+    });
+
+    test('testLlmConnection POSTs to /llm/connections/test and returns on ok:true',
+        () async {
+      mockAdapter.handler = (options) async {
+        expect(options.method, 'POST');
+        expect(options.path,
+            'http://127.0.0.1:7070/llm/connections/test');
+        final data = options.data as Map<String, dynamic>;
+        expect(data['baseUrl'], 'https://api.openai.com/v1');
+        expect(data['apiKey'], 'sk-test');
+        expect(data['model'], 'gpt-4o');
+        return jsonResponse({'ok': true});
+      };
+      await expectLater(
+        client.testLlmConnection(
+          baseUrl: 'https://api.openai.com/v1',
+          apiKey: 'sk-test',
+          model: 'gpt-4o',
+        ),
+        completes,
+      );
+    });
+
+    test('testLlmConnection throws LlmTestException(rejected) with message on ok:false',
+        () async {
+      mockAdapter.handler = (options) async {
+        return jsonResponse({'ok': false, 'error': 'Invalid API key'});
+      };
+      expect(
+        () => client.testLlmConnection(
+          baseUrl: 'https://api.openai.com/v1',
+          apiKey: 'bad-key',
+          model: 'gpt-4o',
+        ),
+        throwsA(
+          predicate((e) =>
+              e is LlmTestException &&
+              e.failure == LlmTestFailure.rejected &&
+              e.message == 'Invalid API key'),
+        ),
+      );
+    });
+
+    test('testLlmConnection throws LlmTestException(unreachable) on transport error',
+        () async {
+      mockAdapter.handler = (options) async {
+        throw DioException(
+          requestOptions: RequestOptions(path: options.path),
+          type: DioExceptionType.connectionTimeout,
+        );
+      };
+      expect(
+        () => client.testLlmConnection(
+          baseUrl: 'http://localhost:99999/v1',
+          apiKey: 'any',
+          model: 'llama3',
+        ),
+        throwsA(
+          predicate((e) =>
+              e is LlmTestException &&
+              e.failure == LlmTestFailure.unreachable),
+        ),
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // llmConnectionsProvider state transitions
+  // ---------------------------------------------------------------------------
+
+  group('llmConnectionsProvider', () {
+    test('transitions Loading -> Data and handles mutations', () async {
+      final fakeClient = FakeApiClient();
+      fakeClient.llmCompleter = Completer<List<LlmConnection>>();
+
+      final container = ProviderContainer(
+        overrides: [apiClientProvider.overrideWithValue(fakeClient)],
+      );
+      addTearDown(container.dispose);
+
+      expect(container.read(llmConnectionsProvider),
+          isA<AsyncLoading<List<LlmConnection>>>());
+
+      const conn = LlmConnection(
+        id: 'llm-1',
+        name: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-4o',
+        apiKey: 'sk-****',
+        isDefault: true,
+        createdAt: 1000,
+      );
+      fakeClient.llmConnectionsData = [conn];
+      fakeClient.llmCompleter!.complete([conn]);
+
+      final data = await container.read(llmConnectionsProvider.future);
+      expect(data.length, 1);
+      expect(data.first.id, 'llm-1');
+
+      // create
+      fakeClient.llmCompleter = null;
+      await container.read(llmConnectionsProvider.notifier).create(
+            name: 'New',
+            baseUrl: 'https://api.openai.com/v1',
+            model: 'gpt-4o-mini',
+            apiKey: 'sk-new',
+          );
+      expect(fakeClient.createdLlmConnection?.name, 'New');
+      final after = await container.read(llmConnectionsProvider.future);
+      expect(after.length, 2);
+
+      // delete
+      await container
+          .read(llmConnectionsProvider.notifier)
+          .delete('new-llm-id');
+      expect(fakeClient.deletedLlmConnectionId, 'new-llm-id');
+
+      // setDefault
+      await container
+          .read(llmConnectionsProvider.notifier)
+          .setDefault('llm-1');
+      expect(fakeClient.setDefaultLlmConnectionId, 'llm-1');
+    });
+
+    test('transitions Loading -> Error when ApiClient throws', () async {
+      final fakeClient = FakeApiClient()..shouldThrow = true;
+      final container = ProviderContainer(
+        overrides: [apiClientProvider.overrideWithValue(fakeClient)],
+      );
+      addTearDown(container.dispose);
+
+      await expectLater(container.read(llmConnectionsProvider.future),
+          throwsA(isA<Exception>()));
+      expect(container.read(llmConnectionsProvider),
+          isA<AsyncError<List<LlmConnection>>>());
     });
   });
 }

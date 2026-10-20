@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:loom_ui/router/router.dart';
 import 'package:loom_ui/services/api_client.dart';
 import 'package:loom_ui/services/engine_process_service.dart';
@@ -28,10 +27,9 @@ String _resolveJarPath() {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // --- Storage (non-sensitive flags + secure API keys) ----------------------
+  // --- Storage (onboarding flag) --------------------------------------------
   final prefs = await SharedPreferences.getInstance();
-  const secureStorage = FlutterSecureStorage();
-  final storage = StorageService(secureStorage, prefs);
+  final storage = StorageService(prefs);
 
   // --- Engine subprocess ----------------------------------------------------
   // Start the JAR immediately. EngineProcessService.start() resolves as soon

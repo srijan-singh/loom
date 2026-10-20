@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:loom_ui/models/agent_definition.dart';
+import 'package:loom_ui/models/llm_connection.dart';
 import 'package:loom_ui/models/mcp_connection.dart';
 import 'package:loom_ui/models/skill.dart';
 import 'package:loom_ui/services/engine_process_service.dart';
@@ -9,7 +10,9 @@ enum LlmTestFailure { rejected, unreachable }
 
 class LlmTestException implements Exception {
   final LlmTestFailure failure;
-  const LlmTestException(this.failure);
+  /// Backend-supplied error message when the test endpoint returns ok:false.
+  final String? message;
+  const LlmTestException(this.failure, {this.message});
 }
 
 enum EngineState { starting, running, unreachable }
@@ -75,6 +78,9 @@ class ApiClient {
   Future<dynamic> put(String path, {dynamic data}) =>
       _dio.put('$_baseUrl$path', data: data, options: _opts).then((r) => r.data);
 
+  Future<dynamic> patch(String path, {dynamic data}) =>
+      _dio.patch('$_baseUrl$path', data: data, options: _opts).then((r) => r.data);
+
   Future<dynamic> delete(String path) =>
       _dio.delete('$_baseUrl$path', options: _opts).then((r) => r.data);
 
@@ -134,34 +140,69 @@ class ApiClient {
   Future<List<dynamic>> getRecentSessions({int limit = 5}) =>
       get('/sessions').then((d) => (d as List<dynamic>).take(limit).toList());
 
-  /// POST /llm/test — returns true on 2xx, false on 4xx (rejected key),
-  /// throws [LlmTestException] with a [LlmTestFailure] discriminant on error.
-  Future<void> testLlm(String provider, String apiKey, String model) async {
-    try {
-      final resp = await _dio.post(
-        '$_baseUrl/llm/test',
-        data: {'provider': provider, 'apiKey': apiKey, 'model': model},
-        options: Options(
-          headers: {if (_token != null) 'X-Loom-Token': _token},
-          validateStatus: (s) => s != null && s < 500,
-        ),
-      );
-      if (resp.statusCode != null && resp.statusCode! >= 400) {
-        throw const LlmTestException(LlmTestFailure.rejected);
-      }
-    } on DioException {
-      throw const LlmTestException(LlmTestFailure.unreachable);
-    }
-  }
+  // ---------------------------------------------------------------------------
+  // LLM Connections
+  // ---------------------------------------------------------------------------
 
-  /// GET /llm/models?provider=[provider] — returns model IDs.
-  /// Falls back to an empty list so callers can use hardcoded defaults.
-  Future<List<String>> getModels(String provider) async {
+  Future<List<LlmConnection>> getLlmConnections() =>
+      get('/llm/connections').then((d) => (d as List<dynamic>)
+          .map((e) => LlmConnection.fromJson(e as Map<String, dynamic>))
+          .toList());
+
+  Future<LlmConnection> createLlmConnection(Map<String, dynamic> payload) =>
+      post('/llm/connections', data: payload)
+          .then((d) => LlmConnection.fromJson(d as Map<String, dynamic>));
+
+  Future<void> deleteLlmConnection(String id) =>
+      delete('/llm/connections/$id').then((_) {});
+
+  /// PATCH /llm/connections/{id}/default — marks the given connection as default.
+  Future<LlmConnection> setDefaultLlmConnection(String id) =>
+      patch('/llm/connections/$id/default')
+          .then((d) => LlmConnection.fromJson(d as Map<String, dynamic>));
+
+  /// POST /llm/connections/test — tests the given endpoint configuration.
+  ///
+  /// The backend always returns HTTP 200.  Returns normally on `{ok:true}`.
+  /// Throws [LlmTestException] with [LlmTestFailure.rejected] and the backend
+  /// error message on `{ok:false}`.
+  /// Throws [LlmTestException] with [LlmTestFailure.unreachable] on transport
+  /// errors (connection refused, timeout, etc.).
+  Future<void> testLlmConnection({
+    required String baseUrl,
+    required String apiKey,
+    required String model,
+  }) async {
     try {
-      final data = await get('/llm/models', queryParameters: {'provider': provider});
-      return (data as List<dynamic>).map((e) => e.toString()).toList();
+      final resp = await post('/llm/connections/test', data: {
+        'baseUrl': baseUrl,
+        'apiKey': apiKey,
+        'model': model,
+      }) as Map<String, dynamic>;
+
+      if (resp['ok'] != true) {
+        final errMsg = resp['error'] as String?;
+        throw LlmTestException(LlmTestFailure.rejected, message: errMsg);
+      }
+    } on LlmTestException {
+      rethrow;
+    } on DioException catch (e) {
+      // A 401 from the engine means the session token is stale (e.g. after a
+      // hot restart while the engine kept running). Surface a clear message
+      // so the user knows to fully restart the app rather than chase the URL.
+      if (e.response?.statusCode == 401) {
+        throw const LlmTestException(
+          LlmTestFailure.unreachable,
+          message:
+              'Session token mismatch — fully restart the app (not hot reload) to resync with the engine.',
+        );
+      }
+      throw const LlmTestException(
+        LlmTestFailure.unreachable,
+        message: "Can't reach the Loom engine. Make sure the backend is running.",
+      );
     } catch (_) {
-      return [];
+      throw const LlmTestException(LlmTestFailure.unreachable);
     }
   }
 }

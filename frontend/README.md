@@ -18,18 +18,18 @@ Flutter (macOS) front-end for the Loom AI-workforce desktop app.
 | Service | Status |
 |---|---|
 | `EngineProcessService` | Launches the Java engine JAR as a subprocess; parses `LOOM_PORT` / `LOOM_TOKEN` from stdout; tees all stdout+stderr to `$TMPDIR/loom-engine.log`; 30 s startup timeout. |
-| `ApiClient` | Thin Dio wrapper; injects `X-Loom-Token` on every request; resolves base URL from the live engine port or `LOOM_ENGINE_URL` dart-define; domain helpers for `/skills`, `/mcps`, `/agents`, `/sessions`, `/llm/test`, `/llm/models`, `/health`. |
+| `ApiClient` | Thin Dio wrapper; injects `X-Loom-Token` on every request; resolves base URL from the live engine port or `LOOM_ENGINE_URL` dart-define; domain helpers for `/skills`, `/mcps`, `/agents`, `/sessions`, `/llm/connections`, `/llm/connections/{id}/default`, `/llm/connections/test`, `/health`. |
 | `SseService` | Connects to `GET /events`; exposes a broadcast `Stream<WorkflowEvent>`; auto-reconnects on error after 5 s. |
-| `StorageService` | API key → `FlutterSecureStorage` (OS keychain); provider / model / onboarding flag → `SharedPreferences`. |
+| `StorageService` | Onboarding completion flag → `SharedPreferences`. LLM connection data is managed exclusively by the backend. |
 
 ### Onboarding (no shell chrome)
 - **Welcome screen** (`/onboarding/welcome`) — logo mark, tagline, body copy,
   primary CTA, fine-print, decorative woven-grid strip at the bottom edge.
-- **API key screen** (`/onboarding/api-key`) — provider segment control
-  (Claude / GPT), masked API-key field with inline validation, model dropdown
-  (populated from `/llm/models` after a successful test; falls back to hardcoded
-  list), "Test key" flow with five inline states (`idle / testing / valid /
-  rejected / unreachable`), "Save and continue" persists to keychain and marks
+- **API key screen** (`/onboarding/api-key`) — OpenAI-compatible connection
+  setup using `LlmConnectionForm`; preset chips (OpenAI, OpenRouter, Groq,
+  Ollama, LM Studio, Custom) prefill name + base URL; free-text model ID with
+  suggestion chips; "Test connection" flow with inline status; "Save and
+  continue" creates a backend connection with `isDefault: true` and marks
   onboarding complete.
 - **MCP setup screen** (`/onboarding/mcp-setup`) — stub; redirects straight to
   dashboard (not yet built).
@@ -47,9 +47,9 @@ Flutter (macOS) front-end for the Loom AI-workforce desktop app.
 | Screen | Route | Status |
 |---|---|---|
 | Dashboard | `/dashboard` | Implemented — time-of-day greeting; stat cards (skills / MCPs connected / agents); new-user setup checklist when all counts are zero; recent sessions list with skeleton loaders and empty state; "New workspace" + "Use a template" quick-start buttons. |
-| Library | `/library` | Stub — empty state placeholder. |
+| Library | `/library` | Implemented — tabbed view (Skills / MCPs / Agents). |
 | Workspaces | `/workspaces` | Stub — empty state placeholder. |
-| Settings | `/settings` | Stub — empty state placeholder. |
+| Settings | `/settings` | Model connections — list with masked key + Default badge; Set default / Delete / Add connection (via `LlmConnectionForm` in a dialog). |
 | Session detail | `/sessions/:id` | Stub — falls back to `DashboardScreen`. |
 | Templates | `/templates` | Stub — falls back to `LibraryScreen`. |
 
@@ -69,12 +69,9 @@ Flutter (macOS) front-end for the Loom AI-workforce desktop app.
   (16 → 1024 px) present in `AppIcon.appiconset`.
 
 ## What's not yet built
-- Library screen (skills, MCP connections, agent definitions)
 - Workspaces screen (create / manage workspaces)
 - Session detail screen (live SSE feed, event timeline)
-- Settings screen (API key rotation, theme toggle, app preferences)
 - MCP setup onboarding step
-- Custom model ID entry (TODO in `api_key_screen.dart`)
 - Dark-mode theme switch (wired in `LoomTheme` but `themeMode` is hardcoded to `ThemeMode.light`)
 - "View logs" action on the engine-down overlay
 

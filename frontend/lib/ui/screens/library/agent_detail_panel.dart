@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:loom_ui/models/agent_definition.dart';
+import 'package:loom_ui/models/llm_connection.dart';
 import 'package:loom_ui/models/mcp_connection.dart';
 import 'package:loom_ui/models/skill.dart';
 import 'package:loom_ui/providers/library_providers.dart';
+import 'package:loom_ui/providers/llm_providers.dart';
 import 'package:loom_ui/ui/theme/loom_theme.dart';
 
 /// Inline panel or full-screen editor for creating and updating an [AgentDefinition].
@@ -30,6 +32,8 @@ class _AgentDetailPanelState extends ConsumerState<AgentDetailPanel> {
   late final TextEditingController _roleCtrl;
   String? _selectedSkillId;
   late Set<String> _selectedMcpIds;
+  // null = "Default" (no specific connection pinned)
+  String? _selectedLlmConnectionId;
   String? _nameError;
   bool _saving = false;
 
@@ -43,6 +47,7 @@ class _AgentDetailPanelState extends ConsumerState<AgentDetailPanel> {
         TextEditingController(text: widget.agent?.roleDescription ?? '');
     _selectedSkillId = widget.agent?.skillId;
     _selectedMcpIds = Set<String>.from(widget.agent?.allowedMcpIds ?? []);
+    _selectedLlmConnectionId = widget.agent?.llmConnectionId;
   }
 
   @override
@@ -53,6 +58,7 @@ class _AgentDetailPanelState extends ConsumerState<AgentDetailPanel> {
       _roleCtrl.text = widget.agent?.roleDescription ?? '';
       _selectedSkillId = widget.agent?.skillId;
       _selectedMcpIds = Set<String>.from(widget.agent?.allowedMcpIds ?? []);
+      _selectedLlmConnectionId = widget.agent?.llmConnectionId;
       _nameError = null;
     }
   }
@@ -99,6 +105,7 @@ class _AgentDetailPanelState extends ConsumerState<AgentDetailPanel> {
                 roleDescription: _roleCtrl.text.trim(),
                 skillId: _selectedSkillId,
                 allowedMcpIds: _selectedMcpIds.toList(),
+                llmConnectionId: _selectedLlmConnectionId,
                 createdAt: now,
                 updatedAt: now,
               ),
@@ -109,6 +116,7 @@ class _AgentDetailPanelState extends ConsumerState<AgentDetailPanel> {
           roleDescription: _roleCtrl.text.trim(),
           skillId: _selectedSkillId,
           allowedMcpIds: _selectedMcpIds.toList(),
+          llmConnectionId: _selectedLlmConnectionId,
           updatedAt: now,
         );
         saved = await ref
@@ -141,9 +149,12 @@ class _AgentDetailPanelState extends ConsumerState<AgentDetailPanel> {
     final colors = LoomColors.of(context);
     final skillsAsync = ref.watch(skillsProvider);
     final mcpsAsync = ref.watch(mcpsProvider);
+    final llmConnectionsAsync = ref.watch(llmConnectionsProvider);
 
     final skills = skillsAsync.valueOrNull ?? const <Skill>[];
     final mcps = mcpsAsync.valueOrNull ?? const <MCPConnection>[];
+    final llmConnections =
+        llmConnectionsAsync.valueOrNull ?? const <LlmConnection>[];
 
     final hasSkill = skills.any((s) => s.id == _selectedSkillId);
     final currentSkillValue = hasSkill ? _selectedSkillId : null;
@@ -394,9 +405,67 @@ class _AgentDetailPanelState extends ConsumerState<AgentDetailPanel> {
                         }).toList(),
                       ),
                     ),
-                ],
-              ),
-            ),
+                  const SizedBox(height: LoomSpace.s16),
+
+                  // LLM Connection
+                  _label('LLM connection', colors),
+                  const SizedBox(height: LoomSpace.s4),
+                  DropdownButtonFormField<String?>(
+                    key: const ValueKey('agent-llm-dropdown'),
+                    initialValue: llmConnections.any(
+                            (c) => c.id == _selectedLlmConnectionId)
+                        ? _selectedLlmConnectionId
+                        : null,
+                    style: TextStyle(fontSize: 14, color: colors.ink),
+                    dropdownColor: colors.surface,
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: LoomSpace.s12,
+                        vertical: LoomSpace.s8,
+                      ),
+                      isDense: true,
+                      filled: true,
+                      fillColor: colors.sunken,
+                      border: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(LoomRadius.control),
+                        borderSide: BorderSide(color: colors.line),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(LoomRadius.control),
+                        borderSide: BorderSide(color: colors.line),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(LoomRadius.control),
+                        borderSide: BorderSide(color: colors.accent),
+                      ),
+                    ),
+                    items: [
+                      DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text(
+                          llmConnections.any((c) => c.isDefault)
+                              ? 'Default (${llmConnections.firstWhere((c) => c.isDefault).name})'
+                              : 'Default',
+                          style: TextStyle(color: colors.ink),
+                        ),
+                      ),
+                      ...llmConnections.map(
+                        (c) => DropdownMenuItem<String?>(
+                          value: c.id,
+                          child: Text(c.name,
+                              style: TextStyle(color: colors.ink)),
+                        ),
+                      ),
+                    ],
+                    onChanged: (val) =>
+                        setState(() => _selectedLlmConnectionId = val),
+                  ),
+                 ],
+               ),
+             ),
           ),
 
           // ── Bottom Action Bar ─────────────────────────────────────────────

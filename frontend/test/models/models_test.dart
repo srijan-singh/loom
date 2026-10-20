@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loom_ui/models/agent_definition.dart';
+import 'package:loom_ui/models/llm_connection.dart';
 import 'package:loom_ui/models/mcp_connection.dart';
 import 'package:loom_ui/models/session.dart';
 import 'package:loom_ui/models/skill.dart';
@@ -285,6 +286,78 @@ void main() {
       expect(agent.copyWith(skillId: null).llmConnectionId, 'llm1');
       expect(agent.copyWith(llmConnectionId: null).llmConnectionId, isNull);
       expect(agent.copyWith(skillId: 'sk2').skillId, 'sk2');
+    });
+  });
+
+  group('LlmConnection model', () {
+    const sampleJson = {
+      'id': 'llm-1',
+      'name': 'My OpenAI',
+      'baseUrl': 'https://api.openai.com/v1',
+      'model': 'gpt-4o',
+      'apiKey': 'sk-****',
+      'isDefault': true,
+      'createdAt': 1700000000000,
+    };
+
+    test('LlmConnection.fromJson parses all fields correctly', () {
+      final conn = LlmConnection.fromJson(sampleJson);
+      expect(conn.id, 'llm-1');
+      expect(conn.name, 'My OpenAI');
+      expect(conn.baseUrl, 'https://api.openai.com/v1');
+      expect(conn.model, 'gpt-4o');
+      expect(conn.apiKey, 'sk-****');
+      expect(conn.isDefault, isTrue);
+      expect(conn.createdAt, 1700000000000);
+    });
+
+    test('LlmConnection.fromJson defaults isDefault to false when absent', () {
+      final conn = LlmConnection.fromJson({
+        'id': 'x',
+        'name': 'X',
+        'baseUrl': 'http://localhost:11434/v1',
+        'model': 'llama3',
+        'apiKey': '',
+        'createdAt': 1,
+      });
+      expect(conn.isDefault, isFalse);
+    });
+
+    test('LlmConnection.toJson round-trips correctly', () {
+      final conn = LlmConnection.fromJson(sampleJson);
+      final json = conn.toJson();
+      expect(json['id'], 'llm-1');
+      expect(json['name'], 'My OpenAI');
+      expect(json['baseUrl'], 'https://api.openai.com/v1');
+      expect(json['model'], 'gpt-4o');
+      expect(json['apiKey'], 'sk-****');
+      expect(json['isDefault'], true);
+      expect(json['createdAt'], 1700000000000);
+      // fromJson(toJson()) round-trip
+      final copy = LlmConnection.fromJson(json);
+      expect(copy.id, conn.id);
+      expect(copy.isDefault, conn.isDefault);
+    });
+
+    test('LlmConnection.copyWith updates only specified fields', () {
+      final conn = LlmConnection.fromJson(sampleJson);
+      final updated = conn.copyWith(name: 'Updated', isDefault: false);
+      expect(updated.name, 'Updated');
+      expect(updated.isDefault, isFalse);
+      // unchanged fields
+      expect(updated.id, 'llm-1');
+      expect(updated.baseUrl, 'https://api.openai.com/v1');
+      expect(updated.model, 'gpt-4o');
+      expect(updated.apiKey, 'sk-****');
+      expect(updated.createdAt, 1700000000000);
+    });
+
+    test('LlmConnection.copyWith with no args returns equivalent object', () {
+      final conn = LlmConnection.fromJson(sampleJson);
+      final copy = conn.copyWith();
+      expect(copy.id, conn.id);
+      expect(copy.name, conn.name);
+      expect(copy.isDefault, conn.isDefault);
     });
   });
 }

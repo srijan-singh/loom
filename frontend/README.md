@@ -18,7 +18,7 @@ Flutter (macOS) front-end for the Loom AI-workforce desktop app.
 | Service | Status |
 |---|---|
 | `EngineProcessService` | Launches the Java engine JAR as a subprocess; parses `LOOM_PORT` / `LOOM_TOKEN` from stdout; tees all stdout+stderr to `$TMPDIR/loom-engine.log`; 30 s startup timeout. |
-| `ApiClient` | Thin Dio wrapper; injects `X-Loom-Token` on every request; resolves base URL from the live engine port or `LOOM_ENGINE_URL` dart-define; domain helpers for `/skills`, `/mcps`, `/agents`, `/sessions`, `/llm/test`, `/llm/models`, `/health`. |
+| `ApiClient` | Thin Dio wrapper; injects `X-Loom-Token` on every request; resolves base URL from the live engine port or `LOOM_ENGINE_URL` dart-define; domain helpers for `/skills`, `/mcps`, `/agents`, `/sessions`, `/llm/connections`, `/llm/connections/{id}/default`, `/llm/connections/test`, `/health`. |
 | `SseService` | Connects to `GET /events`; exposes a broadcast `Stream<WorkflowEvent>`; auto-reconnects on error after 5 s. |
 | `StorageService` | Onboarding completion flag → `SharedPreferences`. LLM connection data is managed exclusively by the backend. |
 
@@ -47,7 +47,7 @@ Flutter (macOS) front-end for the Loom AI-workforce desktop app.
 | Screen | Route | Status |
 |---|---|---|
 | Dashboard | `/dashboard` | Implemented — time-of-day greeting; stat cards (skills / MCPs connected / agents); new-user setup checklist when all counts are zero; recent sessions list with skeleton loaders and empty state; "New workspace" + "Use a template" quick-start buttons. |
-| Library | `/library` | Stub — empty state placeholder. |
+| Library | `/library` | Implemented — tabbed view (Skills / MCPs / Agents). |
 | Workspaces | `/workspaces` | Stub — empty state placeholder. |
 | Settings | `/settings` | Model connections — list with masked key + Default badge; Set default / Delete / Add connection (via `LlmConnectionForm` in a dialog). |
 | Session detail | `/sessions/:id` | Stub — falls back to `DashboardScreen`. |

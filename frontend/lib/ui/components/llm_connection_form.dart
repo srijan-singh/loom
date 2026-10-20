@@ -131,6 +131,7 @@ class LlmConnectionFormState extends ConsumerState<LlmConnectionForm> {
 
   _TestState _testState = _TestState.idle;
   String? _testError;
+  int _testGeneration = 0;
 
   // Inline validation errors
   String? _nameError;
@@ -170,6 +171,7 @@ class LlmConnectionFormState extends ConsumerState<LlmConnectionForm> {
   }
 
   void _resetTestState() {
+    _testGeneration++;
     _testState = _TestState.idle;
     _testError = null;
   }
@@ -245,6 +247,7 @@ class LlmConnectionFormState extends ConsumerState<LlmConnectionForm> {
       return;
     }
 
+    final generation = ++_testGeneration;
     setState(() {
       _testState = _TestState.testing;
       _testError = null;
@@ -257,10 +260,10 @@ class LlmConnectionFormState extends ConsumerState<LlmConnectionForm> {
         apiKey: _effectiveApiKey,
         model: _modelCtrl.text.trim(),
       );
-      if (!mounted) return;
+      if (!mounted || generation != _testGeneration) return;
       setState(() => _testState = _TestState.ok);
     } on LlmTestException catch (e) {
-      if (!mounted) return;
+      if (!mounted || generation != _testGeneration) return;
       setState(() {
         _testState = e.failure == LlmTestFailure.unreachable
             ? _TestState.unreachable
@@ -268,7 +271,7 @@ class LlmConnectionFormState extends ConsumerState<LlmConnectionForm> {
         _testError = e.message;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || generation != _testGeneration) return;
       setState(() => _testState = _TestState.unreachable);
     }
   }

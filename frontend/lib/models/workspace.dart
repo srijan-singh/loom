@@ -12,9 +12,9 @@ class Workspace {
   });
 
   factory Workspace.fromJson(Map<String, dynamic> json) => Workspace(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        description: json['description'] as String?,
-        createdAt: (json['createdAt'] as num).toInt(),
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    description: json['description'] as String?,
+    createdAt: (json['createdAt'] as num).toInt(),
+  );
 }

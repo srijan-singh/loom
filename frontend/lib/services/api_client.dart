@@ -1,5 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:loom_ui/models/agent_definition.dart';
+import 'package:loom_ui/models/mcp_connection.dart';
+import 'package:loom_ui/models/skill.dart';
 import 'package:loom_ui/services/engine_process_service.dart';
 
 enum LlmTestFailure { rejected, unreachable }
@@ -29,13 +32,14 @@ class ApiClient {
   final Dio _dio;
   final EngineProcessService _engine;
 
-  ApiClient(this._engine)
-      : _dio = Dio(
-          BaseOptions(
-            connectTimeout: const Duration(seconds: 3),
-            receiveTimeout: const Duration(seconds: 30),
-          ),
-        );
+  ApiClient(this._engine, {Dio? dio})
+      : _dio = dio ??
+            Dio(
+              BaseOptions(
+                connectTimeout: const Duration(seconds: 3),
+                receiveTimeout: const Duration(seconds: 30),
+              ),
+            );
 
   String get _baseUrl {
     final port = _engine.port;
@@ -68,6 +72,12 @@ class ApiClient {
   Future<dynamic> post(String path, {dynamic data}) =>
       _dio.post('$_baseUrl$path', data: data, options: _opts).then((r) => r.data);
 
+  Future<dynamic> put(String path, {dynamic data}) =>
+      _dio.put('$_baseUrl$path', data: data, options: _opts).then((r) => r.data);
+
+  Future<dynamic> delete(String path) =>
+      _dio.delete('$_baseUrl$path', options: _opts).then((r) => r.data);
+
   // ---------------------------------------------------------------------------
   // Domain helpers used by providers
   // ---------------------------------------------------------------------------
@@ -75,11 +85,50 @@ class ApiClient {
   Future<List<dynamic>> getSkills() =>
       get('/skills').then((d) => d as List<dynamic>);
 
+  Future<Skill> getSkill(String id) =>
+      get('/skills/$id').then((d) => Skill.fromJson(d as Map<String, dynamic>));
+
+  Future<Skill> createSkill(Skill skill) =>
+      post('/skills', data: skill.toJson())
+          .then((d) => Skill.fromJson(d as Map<String, dynamic>));
+
+  Future<Skill> updateSkill(String id, Skill skill) =>
+      put('/skills/$id', data: skill.toJson())
+          .then((d) => Skill.fromJson(d as Map<String, dynamic>));
+
+  Future<void> deleteSkill(String id) =>
+      delete('/skills/$id').then((_) {});
+
   Future<List<dynamic>> getMcps() =>
       get('/mcps').then((d) => d as List<dynamic>);
 
+  Future<MCPConnection> createMcp(Map<String, dynamic> payload) =>
+      post('/mcps', data: payload)
+          .then((d) => MCPConnection.fromJson(d as Map<String, dynamic>));
+
+  Future<void> updateMcpStatus(String id, String status) =>
+      put('/mcps/$id', data: {'status': status}).then((_) {});
+
+  Future<void> deleteMcp(String id) =>
+      delete('/mcps/$id').then((_) {});
+
   Future<List<dynamic>> getAgents() =>
       get('/agents').then((d) => d as List<dynamic>);
+
+  Future<AgentDefinition> getAgent(String id) =>
+      get('/agents/$id')
+          .then((d) => AgentDefinition.fromJson(d as Map<String, dynamic>));
+
+  Future<AgentDefinition> createAgent(AgentDefinition agent) =>
+      post('/agents', data: agent.toJson())
+          .then((d) => AgentDefinition.fromJson(d as Map<String, dynamic>));
+
+  Future<AgentDefinition> updateAgent(String id, AgentDefinition agent) =>
+      put('/agents/$id', data: agent.toJson())
+          .then((d) => AgentDefinition.fromJson(d as Map<String, dynamic>));
+
+  Future<void> deleteAgent(String id) =>
+      delete('/agents/$id').then((_) {});
 
   /// Returns [limit] most-recent sessions.
   Future<List<dynamic>> getRecentSessions({int limit = 5}) =>

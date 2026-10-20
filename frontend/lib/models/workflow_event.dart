@@ -67,11 +67,11 @@ class WorkflowEvent {
   });
 
   factory WorkflowEvent.fromJson(Map<String, dynamic> json) => WorkflowEvent(
-        type: _typeFromString(json['eventType'] as String?),
-        sessionId: json['sessionId'] as String?,
-        nodeId: json['nodeId'] as String?,
-        agentExecutionId: json['agentExecutionId'] as String?,
-        timestamp: (json['timestamp'] as num?)?.toInt() ?? 0,
-        data: json['data'] as Map<String, dynamic>?,
-      );
+    type: _typeFromString(json['eventType'] as String?),
+    sessionId: json['sessionId'] as String?,
+    nodeId: json['nodeId'] as String?,
+    agentExecutionId: json['agentExecutionId'] as String?,
+    timestamp: (json['timestamp'] as num?)?.toInt() ?? 0,
+    data: json['data'] as Map<String, dynamic>?,
+  );
 }

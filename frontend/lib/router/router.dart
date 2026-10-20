@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:loom_ui/services/storage_service.dart';
 import 'package:loom_ui/ui/screens/app_shell.dart';
 import 'package:loom_ui/ui/screens/dashboard/dashboard_screen.dart';
+import 'package:loom_ui/ui/screens/library/skill_editor_screen.dart';
 import 'package:loom_ui/ui/screens/library_screen.dart';
 import 'package:loom_ui/ui/screens/onboarding/api_key_screen.dart';
 import 'package:loom_ui/ui/screens/onboarding/welcome_screen.dart';
@@ -16,6 +17,8 @@ abstract class Routes {
   static const onboardingMcpSetup = '/onboarding/mcp-setup';
   static const dashboard = '/dashboard';
   static const library = '/library';
+  static const librarySkillNew = '/library/skills/new';
+  static const librarySkillDetail = '/library/skills';
   static const workspaces = '/workspaces';
   static const workspacesNew = '/workspaces/new';
   static const templates = '/templates';
@@ -85,6 +88,28 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: Routes.library,
             name: 'library',
             builder: (_, __) => const LibraryScreen(),
+            routes: [
+              GoRoute(
+                path: 'skills/new',
+                name: 'skill-new',
+                builder: (context, _) => SkillEditorScreen(
+                  skillId: null,
+                  onBack: () => context.canPop()
+                      ? context.pop()
+                      : context.go(Routes.library),
+                ),
+              ),
+              GoRoute(
+                path: 'skills/:id',
+                name: 'skill-detail',
+                builder: (context, state) => SkillEditorScreen(
+                  skillId: state.pathParameters['id'],
+                  onBack: () => context.canPop()
+                      ? context.pop()
+                      : context.go(Routes.library),
+                ),
+              ),
+            ],
           ),
           GoRoute(
             path: Routes.workspaces,

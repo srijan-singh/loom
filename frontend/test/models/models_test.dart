@@ -43,7 +43,7 @@ void main() {
 
       final agent = AgentDefinition.fromJson(json);
       expect(agent.id, 'agent-2');
-      expect(agent.roleDescription, isNull);
+      expect(agent.roleDescription, '');
       expect(agent.skillId, isNull);
       expect(agent.allowedMcpIds, isEmpty);
     });
@@ -105,7 +105,7 @@ void main() {
       expect(ws.description, 'Dev workspace');
     });
 
-    test('McpConnection.fromJson parses correctly', () {
+    test('MCPConnection.fromJson parses correctly', () {
       final json = {
         'id': 'mcp-1',
         'name': 'Filesystem MCP',
@@ -113,11 +113,11 @@ void main() {
         'status': 'CONNECTED',
         'createdAt': 1700000000000,
       };
-      final mcp = McpConnection.fromJson(json);
+      final mcp = MCPConnection.fromJson(json);
       expect(mcp.id, 'mcp-1');
       expect(mcp.name, 'Filesystem MCP');
       expect(mcp.type, 'stdio');
-      expect(mcp.status, McpStatus.connected);
+      expect(mcp.status, MCPStatus.CONNECTED);
     });
 
     test('Skill.fromJson parses correctly', () {
@@ -126,7 +126,7 @@ void main() {
         'name': 'Code Review',
         'description': 'Performs automated code reviews',
         'content': 'You are a code reviewer.',
-        'tags': 'review,code',
+        'tags': ['review', 'code'],
         'createdAt': 1700000000000,
         'updatedAt': 1700000050000,
       };
@@ -135,7 +135,7 @@ void main() {
       expect(skill.name, 'Code Review');
       expect(skill.description, 'Performs automated code reviews');
       expect(skill.content, 'You are a code reviewer.');
-      expect(skill.tags, 'review,code');
+      expect(skill.tags, ['review', 'code']);
     });
 
     test('WorkflowEvent.fromJson parses correctly', () {
@@ -153,6 +153,138 @@ void main() {
       expect(event.agentExecutionId, 'exec-1');
       expect(event.type, WorkflowEventType.agentToken);
       expect(event.data?['token'], 'Hello');
+    });
+  });
+
+  group('Model defaults, toJson and copyWith', () {
+    test('Skill.fromJson handles empty/default values', () {
+      final skill = Skill.fromJson({
+        'id': 's',
+        'name': 'n',
+        'createdAt': 1,
+        'updatedAt': 2,
+      });
+      expect(skill.description, '');
+      expect(skill.content, '');
+      expect(skill.tags, isEmpty);
+    });
+
+    test('Skill.toJson matches backend schema and copyWith keeps fields', () {
+      const skill = Skill(
+        id: 's1',
+        name: 'Review',
+        description: 'd',
+        content: 'c',
+        tags: ['a', 'b'],
+        createdAt: 1,
+        updatedAt: 2,
+      );
+      expect(skill.toJson(), {
+        'id': 's1',
+        'name': 'Review',
+        'description': 'd',
+        'content': 'c',
+        'tags': ['a', 'b'],
+        'createdAt': 1,
+        'updatedAt': 2,
+      });
+      final copy = skill.copyWith(name: 'New', tags: ['x']);
+      expect(copy.name, 'New');
+      expect(copy.tags, ['x']);
+      expect(copy.id, 's1');
+      expect(copy.description, 'd');
+      expect(copy.updatedAt, 2);
+    });
+
+    test(
+      'MCPConnection.fromJson handles status strings, tools and nullables',
+      () {
+        final connected = MCPConnection.fromJson({
+          'id': 'm1',
+          'name': 'FS',
+          'type': 'stdio',
+          'status': 'CONNECTED',
+          'tools': ['read', 'write'],
+          'detail': 'ok',
+          'config': {'cmd': 'x'},
+          'createdAt': 5,
+        });
+        expect(connected.status, MCPStatus.CONNECTED);
+        expect(connected.tools, ['read', 'write']);
+        expect(connected.detail, 'ok');
+        expect(connected.config, {'cmd': 'x'});
+
+        final disc = MCPConnection.fromJson({
+          'id': 'm2',
+          'name': 'G',
+          'type': 'sse',
+          'status': 'DISCONNECTED',
+          'createdAt': 5,
+        });
+        expect(disc.status, MCPStatus.DISCONNECTED);
+        expect(disc.tools, isEmpty);
+        expect(disc.detail, isNull);
+        expect(disc.config, isNull);
+      },
+    );
+
+    test('MCPConnection.toJson and copyWith', () {
+      const mcp = MCPConnection(
+        id: 'm1',
+        name: 'FS',
+        type: 'stdio',
+        createdAt: 5,
+      );
+      expect(mcp.status, MCPStatus.DISCONNECTED);
+      final copy = mcp.copyWith(status: MCPStatus.CONNECTED, tools: ['t']);
+      expect(copy.status, MCPStatus.CONNECTED);
+      expect(copy.tools, ['t']);
+      expect(copy.name, 'FS');
+      expect(copy.toJson()['status'], 'CONNECTED');
+      expect(MCPConnection.fromJson(copy.toJson()).tools, ['t']);
+    });
+
+    test(
+      'AgentDefinition.fromJson reads llmConnectionId; toJson/copyWith work',
+      () {
+        final agent = AgentDefinition.fromJson({
+          'id': 'a',
+          'name': 'A',
+          'skillId': 'sk',
+          'allowedMcpIds': ['m1'],
+          'llmConnectionId': 'llm1',
+          'createdAt': 1,
+          'updatedAt': 2,
+        });
+        expect(agent.skillId, 'sk');
+        expect(agent.allowedMcpIds, ['m1']);
+        expect(agent.llmConnectionId, 'llm1');
+        expect(agent.toJson()['llmConnectionId'], 'llm1');
+        final copy = agent.copyWith(name: 'B', allowedMcpIds: []);
+        expect(copy.name, 'B');
+        expect(copy.allowedMcpIds, isEmpty);
+        expect(copy.skillId, 'sk');
+        expect(copy.updatedAt, 2);
+        expect(copy.llmConnectionId, 'llm1');
+      },
+    );
+
+    test('AgentDefinition.copyWith clears nullable fields only when null is '
+        'passed explicitly', () {
+      const agent = AgentDefinition(
+        id: 'a',
+        name: 'A',
+        skillId: 'sk',
+        llmConnectionId: 'llm1',
+        createdAt: 1,
+        updatedAt: 2,
+      );
+      expect(agent.copyWith(name: 'B').skillId, 'sk');
+      expect(agent.copyWith(name: 'B').llmConnectionId, 'llm1');
+      expect(agent.copyWith(skillId: null).skillId, isNull);
+      expect(agent.copyWith(skillId: null).llmConnectionId, 'llm1');
+      expect(agent.copyWith(llmConnectionId: null).llmConnectionId, isNull);
+      expect(agent.copyWith(skillId: 'sk2').skillId, 'sk2');
     });
   });
 }

@@ -45,23 +45,29 @@ class AgentDefinition {
     'llmConnectionId': llmConnectionId,
   };
 
+  static const Object _unset = Object();
+
+  /// [skillId] and [llmConnectionId] are nullable: omit to keep the current
+  /// value, pass `null` explicitly to clear it.
   AgentDefinition copyWith({
     String? id,
     String? name,
     String? roleDescription,
-    String? skillId,
+    Object? skillId = _unset,
     List<String>? allowedMcpIds,
     int? createdAt,
     int? updatedAt,
-    String? llmConnectionId,
+    Object? llmConnectionId = _unset,
   }) => AgentDefinition(
     id: id ?? this.id,
     name: name ?? this.name,
     roleDescription: roleDescription ?? this.roleDescription,
-    skillId: skillId ?? this.skillId,
+    skillId: identical(skillId, _unset) ? this.skillId : skillId as String?,
     allowedMcpIds: allowedMcpIds ?? this.allowedMcpIds,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
-    llmConnectionId: llmConnectionId ?? this.llmConnectionId,
+    llmConnectionId: identical(llmConnectionId, _unset)
+        ? this.llmConnectionId
+        : llmConnectionId as String?,
   );
 }

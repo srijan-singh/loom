@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:loom_ui/ui/theme/loom_theme.dart';
 
 /// Chip input row: type a tag and press Enter to add; tap × to remove.
@@ -105,44 +104,35 @@ class _TagChipInputState extends State<TagChipInput> {
         // Input field
         SizedBox(
           height: LoomSize.controlCompact,
-          child: KeyboardListener(
-            focusNode: FocusNode(),
-            onKeyEvent: (event) {
-              if (event is KeyDownEvent &&
-                  event.logicalKey == LogicalKeyboardKey.enter) {
-                _submit();
-              }
-            },
-            child: TextField(
-              key: const ValueKey('tag-input'),
-              controller: _ctrl,
-              focusNode: _focus,
-              style: TextStyle(fontSize: 13, color: colors.ink),
-              decoration: InputDecoration(
-                hintText: 'Add tag…',
-                hintStyle: TextStyle(fontSize: 13, color: colors.ink3),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: LoomSpace.s8,
-                  vertical: 0,
-                ),
-                isDense: true,
-                filled: true,
-                fillColor: colors.sunken,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(LoomRadius.control),
-                  borderSide: BorderSide(color: colors.line),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(LoomRadius.control),
-                  borderSide: BorderSide(color: colors.line),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(LoomRadius.control),
-                  borderSide: BorderSide(color: colors.accent),
-                ),
+          child: TextField(
+            key: const ValueKey('tag-input'),
+            controller: _ctrl,
+            focusNode: _focus,
+            style: TextStyle(fontSize: 13, color: colors.ink),
+            decoration: InputDecoration(
+              hintText: 'Add tag…',
+              hintStyle: TextStyle(fontSize: 13, color: colors.ink3),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: LoomSpace.s8,
+                vertical: 0,
               ),
-              onSubmitted: (_) => _submit(),
+              isDense: true,
+              filled: true,
+              fillColor: colors.sunken,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(LoomRadius.control),
+                borderSide: BorderSide(color: colors.line),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(LoomRadius.control),
+                borderSide: BorderSide(color: colors.line),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(LoomRadius.control),
+                borderSide: BorderSide(color: colors.accent),
+              ),
             ),
+            onSubmitted: (_) => _submit(),
           ),
         ),
       ],

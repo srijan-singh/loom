@@ -48,8 +48,7 @@ class _AgentDetailPanelState extends ConsumerState<AgentDetailPanel> {
   @override
   void didUpdateWidget(covariant AgentDetailPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.agent?.id != widget.agent?.id ||
-        oldWidget.agent != widget.agent) {
+    if (oldWidget.agent?.id != widget.agent?.id) {
       _nameCtrl.text = widget.agent?.name ?? '';
       _roleCtrl.text = widget.agent?.roleDescription ?? '';
       _selectedSkillId = widget.agent?.skillId;
@@ -120,8 +119,9 @@ class _AgentDetailPanelState extends ConsumerState<AgentDetailPanel> {
       if (!mounted) return;
       setState(() => _saving = false);
 
-      widget.onSaved?.call(saved);
-      if (widget.onClose != null) {
+      if (widget.onSaved != null) {
+        widget.onSaved!(saved);
+      } else if (widget.onClose != null) {
         widget.onClose!();
       } else if (Navigator.of(context).canPop()) {
         Navigator.of(context).pop(saved);

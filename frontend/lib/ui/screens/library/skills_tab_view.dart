@@ -60,8 +60,15 @@ class _SkillsTabViewState extends ConsumerState<SkillsTabView> {
       confirmLabel: 'Delete',
       isDestructive: true,
     );
-    if (confirmed) {
+    if (!confirmed) return;
+    try {
       await ref.read(skillsProvider.notifier).deleteSkill(id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Delete failed: $e')),
+        );
+      }
     }
   }
 
@@ -161,7 +168,7 @@ class _SkillsTabViewState extends ConsumerState<SkillsTabView> {
                           s.tags.any((t) => t.toLowerCase().contains(_query)))
                       .toList();
 
-              if (filtered.isEmpty) {
+              if (skills.isEmpty) {
                 return Padding(
                   padding: const EdgeInsets.all(LoomSpace.s16),
                   child: EmptyState(
@@ -170,6 +177,22 @@ class _SkillsTabViewState extends ConsumerState<SkillsTabView> {
                     body: 'Create your first skill.',
                     actionLabel: 'New Skill',
                     onAction: _navigateNew,
+                  ),
+                );
+              }
+
+              if (filtered.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(LoomSpace.s16),
+                  child: EmptyState(
+                    icon: Icons.search_off,
+                    headline: 'No matching skills',
+                    body: 'Try a different search.',
+                    actionLabel: 'Clear search',
+                    onAction: () {
+                      _searchCtrl.clear();
+                      setState(() => _query = '');
+                    },
                   ),
                 );
               }

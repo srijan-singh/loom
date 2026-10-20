@@ -15,6 +15,7 @@ class McpsTabView extends ConsumerWidget {
 
   Future<void> _confirmDelete(
       BuildContext context, WidgetRef ref, MCPConnection mcp) async {
+    final messenger = ScaffoldMessenger.of(context);
     final confirmed = await ConfirmDialog.show(
       context,
       title: 'Delete connection?',
@@ -23,7 +24,31 @@ class McpsTabView extends ConsumerWidget {
       isDestructive: true,
     );
     if (confirmed) {
-      await ref.read(mcpsProvider.notifier).deleteMcp(mcp.id);
+      try {
+        await ref.read(mcpsProvider.notifier).deleteMcp(mcp.id);
+      } catch (e) {
+        if (context.mounted) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('Failed to delete connection: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _disconnect(
+      BuildContext context, WidgetRef ref, MCPConnection mcp) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(mcpsProvider.notifier)
+          .updateMcpStatus(mcp.id, 'DISCONNECTED');
+    } catch (e) {
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Failed to disconnect: $e')),
+        );
+      }
     }
   }
 
@@ -121,9 +146,7 @@ class McpsTabView extends ConsumerWidget {
                       key: ValueKey('mcp-card-${mcp.id}'),
                       mcp: mcp,
                       onDisconnect: mcp.status == MCPStatus.CONNECTED
-                          ? () => ref
-                              .read(mcpsProvider.notifier)
-                              .updateMcpStatus(mcp.id, 'DISCONNECTED')
+                          ? () => _disconnect(ctx, ref, mcp)
                           : null,
                       onDelete: () => _confirmDelete(ctx, ref, mcp),
                     );

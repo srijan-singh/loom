@@ -33,6 +33,7 @@ class _SkillEditorScreenState extends ConsumerState<SkillEditorScreen> {
   final _contentCtrl = TextEditingController();
 
   // ── state ────────────────────────────────────────────────────────────────
+  String? _skillId;
   Skill? _original;
   List<String> _tags = [];
   bool _loading = true;
@@ -55,12 +56,14 @@ class _SkillEditorScreenState extends ConsumerState<SkillEditorScreen> {
         !_listEquals(_tags, _original!.tags);
   }
 
-  bool get _isNew => widget.skillId == null;
+  bool get _isNew => _skillId == null;
   bool get _canSave => _isDirty && _nameCtrl.text.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
+    _skillId = widget.skillId;
+
     _nameCtrl.addListener(() => setState(() {}));
     _descCtrl.addListener(() => setState(() {}));
     _contentCtrl.addListener(() => setState(() {}));
@@ -81,7 +84,7 @@ class _SkillEditorScreenState extends ConsumerState<SkillEditorScreen> {
       return;
     }
 
-    final id = widget.skillId!;
+    final id = _skillId!;
 
     // Await the provider future so we get the data even if it hasn't settled
     // yet (important for tests and cold starts).
@@ -139,11 +142,12 @@ class _SkillEditorScreenState extends ConsumerState<SkillEditorScreen> {
               ),
             );
         _original = created;
+        _skillId = created.id;
       } else {
         final updated = await ref.read(skillsProvider.notifier).updateSkill(
-              widget.skillId!,
+              _skillId!,
               Skill(
-                id: widget.skillId!,
+                id: _skillId!,
                 name: _nameCtrl.text.trim(),
                 description: _descCtrl.text.trim(),
                 content: _contentCtrl.text,
@@ -175,7 +179,8 @@ class _SkillEditorScreenState extends ConsumerState<SkillEditorScreen> {
     );
     if (!confirmed || !mounted) return;
     try {
-      await ref.read(skillsProvider.notifier).deleteSkill(widget.skillId!);
+      await ref.read(skillsProvider.notifier).deleteSkill(_skillId!);
+      if (!mounted) return;
       _navigateBack();
     } catch (e) {
       if (mounted) {

@@ -265,7 +265,26 @@ void main() {
         expect(copy.allowedMcpIds, isEmpty);
         expect(copy.skillId, 'sk');
         expect(copy.updatedAt, 2);
+        expect(copy.llmConnectionId, 'llm1');
       },
     );
+
+    test('AgentDefinition.copyWith clears nullable fields only when null is '
+        'passed explicitly', () {
+      const agent = AgentDefinition(
+        id: 'a',
+        name: 'A',
+        skillId: 'sk',
+        llmConnectionId: 'llm1',
+        createdAt: 1,
+        updatedAt: 2,
+      );
+      expect(agent.copyWith(name: 'B').skillId, 'sk');
+      expect(agent.copyWith(name: 'B').llmConnectionId, 'llm1');
+      expect(agent.copyWith(skillId: null).skillId, isNull);
+      expect(agent.copyWith(skillId: null).llmConnectionId, 'llm1');
+      expect(agent.copyWith(llmConnectionId: null).llmConnectionId, isNull);
+      expect(agent.copyWith(skillId: 'sk2').skillId, 'sk2');
+    });
   });
 }

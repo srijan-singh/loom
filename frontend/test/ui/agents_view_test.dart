@@ -24,6 +24,7 @@ class _FakeAgentsNotifier extends AgentsNotifier {
   final List<AgentDefinition> createdCalls = [];
   final List<(String, AgentDefinition)> updatedCalls = [];
   final List<String> deletedCalls = [];
+  Object? deleteError;
 
   @override
   Future<List<AgentDefinition>> build() async => List.from(_agents);
@@ -52,6 +53,7 @@ class _FakeAgentsNotifier extends AgentsNotifier {
   @override
   Future<void> deleteAgent(String id) async {
     deletedCalls.add(id);
+    if (deleteError != null) throw deleteError!;
     _agents.removeWhere((a) => a.id == id);
     ref.invalidateSelf();
   }
@@ -468,6 +470,94 @@ void main() {
       expect(notifier.deletedCalls, ['ag-1']);
       expect(find.byType(AgentCard), findsNothing);
       expect(find.byType(EmptyState), findsOneWidget);
+    });
+
+    testWidgets(
+        'Delete failure shows SnackBar, keeps agent and selection',
+        (tester) async {
+      tester.view.physicalSize = const Size(1024, 768);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final notifier = _FakeAgentsNotifier([_sampleAgent1])
+        ..deleteError = Exception('boom');
+
+      await tester.pumpWidget(_buildTabView(agentsNotifier: notifier));
+      await tester.pumpAndSettle();
+
+      // Select the agent so the detail panel is open.
+      await tester.tap(find.text('PR Review Bot'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AgentDetailPanel), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('agent-delete')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(notifier.deletedCalls, ['ag-1']);
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.textContaining('Delete failed'), findsOneWidget);
+      expect(find.textContaining('boom'), findsOneWidget);
+      expect(find.byType(AgentCard), findsOneWidget);
+      expect(find.byType(AgentDetailPanel), findsOneWidget);
+    });
+
+    testWidgets(
+        'Unsaved edits are preserved when agent object is replaced with same id',
+        (tester) async {
+      final notifier = _FakeAgentsNotifier([_sampleAgent1]);
+
+      await tester.pumpWidget(
+        _buildDetailPanel(agent: _sampleAgent1, agentsNotifier: notifier),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.byKey(const ValueKey('agent-name-field')), 'Edited Name');
+
+      await tester.pumpWidget(
+        _buildDetailPanel(
+          agent: _sampleAgent1.copyWith(updatedAt: 999),
+          agentsNotifier: notifier,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<TextField>(
+                find.byKey(const ValueKey('agent-name-field')))
+            .controller!
+            .text,
+        'Edited Name',
+      );
+    });
+
+    testWidgets('Saving calls only onSaved when both callbacks are provided',
+        (tester) async {
+      final notifier = _FakeAgentsNotifier([_sampleAgent1]);
+      var saved = 0;
+      var closed = 0;
+
+      await tester.pumpWidget(
+        _buildDetailPanel(
+          agent: _sampleAgent1,
+          agentsNotifier: notifier,
+          onSaved: (_) => saved++,
+          onClose: () => closed++,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('agent-save-btn')));
+      await tester.pumpAndSettle();
+
+      expect(saved, 1);
+      expect(closed, 0);
     });
 
     // ── Additional Edge Cases ───────────────────────────────────────────────

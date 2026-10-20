@@ -83,6 +83,7 @@ class _AgentsTabViewState extends ConsumerState<AgentsTabView> {
   }
 
   Future<void> _confirmDelete(BuildContext context, String id) async {
+    final messenger = ScaffoldMessenger.of(context);
     final confirmed = await ConfirmDialog.show(
       context,
       title: 'Delete agent?',
@@ -91,7 +92,16 @@ class _AgentsTabViewState extends ConsumerState<AgentsTabView> {
       isDestructive: true,
     );
     if (confirmed) {
-      await ref.read(agentsProvider.notifier).deleteAgent(id);
+      try {
+        await ref.read(agentsProvider.notifier).deleteAgent(id);
+      } catch (e) {
+        if (mounted) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('Delete failed: $e')),
+          );
+        }
+        return;
+      }
       if (_selectedAgentId == id && mounted) {
         setState(() {
           _selectedAgentId = null;
@@ -153,8 +163,9 @@ class _AgentsTabViewState extends ConsumerState<AgentsTabView> {
           agent: agent,
           onClose: () => setState(() => _selectedAgentId = null),
           onSaved: (saved) {
+            // Saving an existing agent closes the inline editor.
             setState(() {
-              _selectedAgentId = saved.id;
+              _selectedAgentId = null;
             });
           },
         );

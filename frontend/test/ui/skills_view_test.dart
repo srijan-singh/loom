@@ -19,6 +19,8 @@ class _FakeSkillsNotifier extends SkillsNotifier {
   _FakeSkillsNotifier(List<Skill> skills) : _skills = List.from(skills);
 
   final List<Skill> _skills;
+  int createCount = 0;
+  int updateCount = 0;
 
   @override
   Future<List<Skill>> build() async => _skills;
@@ -31,6 +33,7 @@ class _FakeSkillsNotifier extends SkillsNotifier {
 
   @override
   Future<Skill> createSkill(Skill skill) async {
+    createCount++;
     final created = skill.copyWith(id: 'new-id');
     _skills.add(created);
     ref.invalidateSelf();
@@ -39,11 +42,19 @@ class _FakeSkillsNotifier extends SkillsNotifier {
 
   @override
   Future<Skill> updateSkill(String id, Skill skill) async {
+    updateCount++;
     final idx = _skills.indexWhere((s) => s.id == id);
     if (idx != -1) _skills[idx] = skill;
     ref.invalidateSelf();
     return skill;
   }
+}
+
+class _FailingDeleteNotifier extends _FakeSkillsNotifier {
+  _FailingDeleteNotifier(super.skills);
+
+  @override
+  Future<void> deleteSkill(String id) async => throw Exception('boom');
 }
 
 /// Two sample skills used across tests.
@@ -71,10 +82,11 @@ Widget _buildTabView(
   List<Skill> skills, {
   VoidCallback? onNewSkill,
   void Function(String id)? onOpenSkill,
+  _FakeSkillsNotifier? notifier,
 }) {
   return ProviderScope(
     overrides: [
-      skillsProvider.overrideWith(() => _FakeSkillsNotifier(skills)),
+      skillsProvider.overrideWith(() => notifier ?? _FakeSkillsNotifier(skills)),
     ],
     child: MaterialApp(
       theme: LoomTheme.light,
@@ -92,11 +104,12 @@ Widget _buildEditor({
   String? skillId,
   List<Skill> skills = const [],
   VoidCallback? onBack,
+  _FakeSkillsNotifier? notifier,
 }) {
   return ProviderScope(
     overrides: [
       skillsProvider.overrideWith(
-        () => _FakeSkillsNotifier(List.from(skills)),
+        () => notifier ?? _FakeSkillsNotifier(List.from(skills)),
       ),
     ],
     child: MaterialApp(
@@ -145,6 +158,42 @@ void main() {
 
       expect(find.byType(EmptyState), findsOneWidget);
       expect(find.text('No skills yet'), findsOneWidget);
+    });
+
+    testWidgets(
+        'shows search-specific empty state when no skills match the query',
+        (tester) async {
+      await tester.pumpWidget(_buildTabView([_skill1, _skill2]));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.byKey(const ValueKey('skills-search')), 'zzzz');
+      await tester.pump();
+
+      expect(find.byType(EmptyState), findsOneWidget);
+      expect(find.text('No matching skills'), findsOneWidget);
+      expect(find.text('No skills yet'), findsNothing);
+
+      await tester.tap(find.text('Clear search'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SkillCard), findsNWidgets(2));
+    });
+
+    testWidgets('shows SnackBar when deleting a skill fails', (tester) async {
+      await tester.pumpWidget(
+        _buildTabView([], notifier: _FailingDeleteNotifier([_skill1])),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('skill-delete')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Delete failed'), findsOneWidget);
+      expect(find.byType(SkillCard), findsOneWidget);
     });
 
     testWidgets(
@@ -216,6 +265,34 @@ void main() {
             .text,
         '',
       );
+    });
+
+    testWidgets('saving again after create updates instead of creating',
+        (tester) async {
+      final notifier = _FakeSkillsNotifier([]);
+      await tester.pumpWidget(_buildEditor(notifier: notifier));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.byKey(const ValueKey('skill-name-field')), 'First');
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('save-btn')));
+      await tester.pumpAndSettle();
+      expect(notifier.createCount, 1);
+
+      // Title reflects saved skill and Delete menu is available
+      expect(find.text('New Skill'), findsNothing);
+      expect(find.byKey(const ValueKey('editor-overflow-menu')),
+          findsOneWidget);
+
+      await tester.enterText(
+          find.byKey(const ValueKey('skill-name-field')), 'Second');
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('save-btn')));
+      await tester.pumpAndSettle();
+
+      expect(notifier.createCount, 1);
+      expect(notifier.updateCount, 1);
     });
 
     testWidgets('enables Save button only when changes are made',

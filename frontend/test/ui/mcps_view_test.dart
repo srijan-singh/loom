@@ -18,6 +18,9 @@ class _FakeMcpsNotifier extends McpsNotifier {
   _FakeMcpsNotifier(List<MCPConnection> mcps, this.created)
       : _mcps = List.from(mcps);
 
+  /// When true, [updateMcpStatus] and [deleteMcp] throw.
+  bool failMutations = false;
+
   final List<MCPConnection> _mcps;
   final List<Map<String, dynamic>> created;
   final List<(String, String)> statusUpdates = [];
@@ -41,6 +44,7 @@ class _FakeMcpsNotifier extends McpsNotifier {
 
   @override
   Future<void> updateMcpStatus(String id, String status) async {
+    if (failMutations) throw Exception('status boom');
     statusUpdates.add((id, status));
     final idx = _mcps.indexWhere((m) => m.id == id);
     if (idx != -1) {
@@ -55,6 +59,7 @@ class _FakeMcpsNotifier extends McpsNotifier {
 
   @override
   Future<void> deleteMcp(String id) async {
+    if (failMutations) throw Exception('delete boom');
     _mcps.removeWhere((m) => m.id == id);
     ref.invalidateSelf();
   }
@@ -181,6 +186,38 @@ void main() {
 
       expect(find.byType(MCPCard), findsNothing);
       expect(find.byType(EmptyState), findsOneWidget);
+    });
+
+    testWidgets('shows SnackBar with error when disconnect fails',
+        (tester) async {
+      final notifier = _FakeMcpsNotifier([_mcp1], [])..failMutations = true;
+      await tester.pumpWidget(_build(const McpsTabView(), notifier));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('mcp-disconnect')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.textContaining('status boom'), findsOneWidget);
+    });
+
+    testWidgets('shows SnackBar with error when delete fails', (tester) async {
+      final notifier = _FakeMcpsNotifier([_mcp1], [])..failMutations = true;
+      await tester.pumpWidget(_build(const McpsTabView(), notifier));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('mcp-delete')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.textContaining('delete boom'), findsOneWidget);
+      expect(find.byType(MCPCard), findsOneWidget);
     });
   });
 
